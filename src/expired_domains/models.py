@@ -44,6 +44,25 @@ class HistoryRow:
 
 
 @dataclass(frozen=True)
+class BacklinkRow:
+    """One ``backlinks`` row, after normalisation and hashing."""
+
+    link_hash: str
+    source_queries: list[str]
+    url_from: str | None
+    url_to: str | None
+    domain_from: str | None
+    root_domain_from: str | None
+    anchor_raw: str | None
+    anchor_norm: str | None
+    is_dofollow: bool | None
+    domain_rating: float | None
+    first_seen_link: str | None
+    era: None
+    raw_json: str
+
+
+@dataclass(frozen=True)
 class RequestRecord:
     """Normalised result of one provider request."""
 

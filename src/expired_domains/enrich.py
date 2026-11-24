@@ -16,12 +16,15 @@ from expired_domains.storage.db import (
     init_db,
     insert_run,
     transaction,
+    upsert_backlinks,
     upsert_history_rows,
     upsert_request,
     upsert_stats,
 )
 from expired_domains.storage.parsers import (
     compute_coverage,
+    merge_backlink_rows,
+    parse_backlinks,
     parse_metrics_history,
     parse_refdomains_history,
     parse_stats,
@@ -62,6 +65,9 @@ def run_enrich(
     specs = build_run_queries(domain, run_date)
     requests: list[RequestRecord] = []
     stats_rows = []
+    top_dr_rows = []
+    latest_rows = []
+    backlink_rows = []
     failures: dict[str, str] = {}
 
     try:
@@ -118,12 +124,19 @@ def run_enrich(
                                 run_id,
                                 parse_metrics_history(record.payload or {}),
                             )
+                        elif spec.query_id == "top_dr_backlinks":
+                            top_dr_rows = parse_backlinks(record.payload or {}, spec.query_id)
+                            backlink_rows.extend(top_dr_rows)
+                        elif spec.query_id == "latest_backlinks":
+                            latest_rows = parse_backlinks(record.payload or {}, spec.query_id)
+                            backlink_rows.extend(latest_rows)
 
                     message = record.error or record.parse_error
                     if message:
                         failures[record.query_id] = message
 
-                coverage = compute_coverage(stats_rows)
+                upsert_backlinks(conn, run_id, merge_backlink_rows(backlink_rows))
+                coverage = compute_coverage(stats_rows, top_dr_rows, latest_rows)
                 units = _totals(requests)
                 error = failures or None
                 _write_run(

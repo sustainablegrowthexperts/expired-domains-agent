@@ -1,7 +1,7 @@
 ---
 id: task-003
 title: "[Slice] Retrieve backlink slices with normalisation, hashing, and dedupe"
-status: pending
+status: completed
 depends_on: ["task-002"]
 target_files:
   - "src/expired_domains/ahrefs/queries.py"

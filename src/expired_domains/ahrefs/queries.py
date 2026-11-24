@@ -12,6 +12,8 @@ from expired_domains.models import QuerySpec
 
 HISTORY_MONTHS = 48
 
+BACKLINK_SELECT = "url_from,url_to,anchor,first_seen_link,is_dofollow,domain_rating_source"
+
 
 def history_date_from(run_date: date) -> date:
     """Return the first day of the month 48 months before ``run_date``."""
@@ -58,6 +60,32 @@ def build_run_queries(domain: str, run_date: date) -> list[QuerySpec]:
                 "date_from": date_from,
                 "history_grouping": "monthly",
                 "select": "date,org_traffic",
+            },
+        ),
+        QuerySpec(
+            query_id="top_dr_backlinks",
+            endpoint="/site-explorer/all-backlinks",
+            params={
+                "target": domain,
+                "mode": "domain",
+                "history": "live",
+                "aggregation": "1_per_domain",
+                "limit": "70",
+                "order_by": "domain_rating_source:desc",
+                "select": BACKLINK_SELECT,
+            },
+        ),
+        QuerySpec(
+            query_id="latest_backlinks",
+            endpoint="/site-explorer/all-backlinks",
+            params={
+                "target": domain,
+                "mode": "domain",
+                "history": "live",
+                "aggregation": "1_per_domain",
+                "limit": "30",
+                "order_by": "first_seen_link:desc",
+                "select": BACKLINK_SELECT,
             },
         ),
         QuerySpec(

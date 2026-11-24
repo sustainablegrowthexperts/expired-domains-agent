@@ -78,6 +78,7 @@ def _print_summary(summary: RunSummary) -> None:
     print(f"raw_dir: {summary.raw_dir}")
     print(f"coverage: {_coverage_line(summary.coverage)}")
     print(f"history: {_history_line(summary.requests)}")
+    print(f"backlinks: {_backlinks_line(summary.coverage)}")
     print(f"units: actual={summary.units.actual} billed={summary.units.billed}")
     if summary.error:
         print(f"error: {summary.error}", file=sys.stderr)
@@ -90,6 +91,14 @@ def _history_line(requests: Sequence[RequestRecord]) -> str:
         if record.query_id in counts:
             counts[record.query_id] = _row_count(record.rows)
     return " ".join(f"{query_id}={count}" for query_id, count in counts.items())
+
+
+def _backlinks_line(coverage: Coverage) -> str:
+    """Render the deduplicated backlink counts for the run summary."""
+    return (
+        f"top_dr={coverage.rows['top_dr']} latest={coverage.rows['latest']} "
+        f"unique={coverage.rows['unique']}"
+    )
 
 
 def _row_count(value: str | None) -> int:

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from expired_domains.models import HistoryRow
+from expired_domains.models import BacklinkRow, HistoryRow
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
@@ -43,6 +44,23 @@ _REQUEST_COLUMNS = (
 _STATS_COLUMNS = ("run_id", "snapshot", "links", "refdomains")
 
 _HISTORY_COLUMNS = ("run_id", "series", "date", "value")
+
+_BACKLINK_COLUMNS = (
+    "run_id",
+    "link_hash",
+    "source_queries",
+    "url_from",
+    "url_to",
+    "domain_from",
+    "root_domain_from",
+    "anchor_raw",
+    "anchor_norm",
+    "is_dofollow",
+    "domain_rating",
+    "first_seen_link",
+    "era",
+    "raw_json",
+)
 
 
 def connect(db_path: Path) -> sqlite3.Connection:
@@ -185,6 +203,45 @@ def upsert_history_rows(
             columns=_HISTORY_COLUMNS,
             values=(run_id, row.series, row.date, row.value),
             conflict_columns=("run_id", "series", "date"),
+        )
+
+
+def upsert_backlinks(
+    conn: sqlite3.Connection,
+    run_id: str,
+    rows: Iterable[BacklinkRow],
+) -> None:
+    """Insert backlinks, merging ``source_queries`` on an existing ``link_hash``."""
+    placeholders = ", ".join("?" for _ in _BACKLINK_COLUMNS)
+    column_list = ", ".join(_BACKLINK_COLUMNS)
+    sql = (
+        f"INSERT INTO backlinks ({column_list}) VALUES ({placeholders}) "
+        "ON CONFLICT (run_id, link_hash) DO UPDATE SET source_queries = ("
+        "SELECT json_group_array(value) FROM ("
+        "SELECT value FROM json_each(backlinks.source_queries) "
+        "UNION SELECT value FROM json_each(excluded.source_queries) "
+        "ORDER BY value))"
+    )
+
+    for row in rows:
+        conn.execute(
+            sql,
+            (
+                run_id,
+                row.link_hash,
+                json.dumps(sorted(set(row.source_queries)), separators=(",", ":")),
+                row.url_from,
+                row.url_to,
+                row.domain_from,
+                row.root_domain_from,
+                row.anchor_raw,
+                row.anchor_norm,
+                int(row.is_dofollow) if row.is_dofollow is not None else None,
+                row.domain_rating,
+                row.first_seen_link,
+                row.era,
+                row.raw_json,
+            ),
         )
 
 

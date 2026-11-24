@@ -116,3 +116,4 @@ def test_successful_run_prints_query_line_and_summary(
     assert "5979" in captured.out
     assert "992" in captured.out
     assert "1599" in captured.out
+    assert "backlinks: top_dr=0 latest=0 unique=0" in captured.out

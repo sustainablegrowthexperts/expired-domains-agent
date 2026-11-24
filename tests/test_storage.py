@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 import expired_domains.storage.db as db
+import expired_domains.storage.parsers as parsers
+from conftest import make_settings, reference_run_dir
 from expired_domains import models
+from expired_domains.enrich import run_enrich
 from expired_domains.storage.db import (
     connect,
     init_db,
@@ -17,6 +22,7 @@ from expired_domains.storage.db import (
     upsert_request,
     upsert_stats,
 )
+from expired_domains.storage.parsers import compute_coverage
 
 RUN_ID = "example.com:20261124T000000Z:ahrefs"
 CONFIG_JSON = '{"spec": "ahrefs-ingestion-spec-v3.1", "history_months": 48}'
@@ -302,5 +308,206 @@ def test_history_rows_are_rejected_without_a_parent_run(tmp_db: Path) -> None:
                     "missing",
                     [models.HistoryRow(series="refdomains", date="2022-11-01", value=1)],
                 )
+    finally:
+        conn.close()
+
+
+CORRECTED_RUN = "smoke-fire.com_20261124T084340Z_ahrefs"
+
+
+def _backlink_row(**overrides) -> models.BacklinkRow:
+    values = {
+        "link_hash": "hash-1",
+        "source_queries": ["top_dr_backlinks"],
+        "url_from": "https://example.com/a",
+        "url_to": "https://example.org/",
+        "domain_from": "example.com",
+        "root_domain_from": "example.com",
+        "anchor_raw": "Anchor",
+        "anchor_norm": "anchor",
+        "is_dofollow": True,
+        "domain_rating": 42.0,
+        "first_seen_link": "2026-01-02T03:04:05Z",
+        "era": None,
+        "raw_json": '{"url_from": "https://example.com/a"}',
+    }
+    values.update(overrides)
+    return models.BacklinkRow(**values)
+
+
+def _fixture_payload(query_id: str) -> dict:
+    run_dir = reference_run_dir(CORRECTED_RUN)
+    raw = json.loads((run_dir / "raw" / f"{query_id}.p0.json").read_text(encoding="utf-8"))
+    return raw["payload"]
+
+
+def test_backlinks_table_exists_with_composite_primary_key(tmp_db: Path) -> None:
+    init_db(tmp_db)
+
+    conn = _open(tmp_db)
+    try:
+        tables = {
+            row["name"]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
+        assert "backlinks" in tables
+        assert _primary_key(conn, "backlinks") == ["run_id", "link_hash"]
+    finally:
+        conn.close()
+
+
+def test_upsert_backlinks_merges_source_queries_and_keeps_the_canonical_row(
+    tmp_db: Path,
+) -> None:
+    init_db(tmp_db)
+    conn = _open(tmp_db)
+    try:
+        with transaction(conn):
+            _insert_sample_run(conn)
+            db.upsert_backlinks(conn, RUN_ID, [_backlink_row()])
+            db.upsert_backlinks(
+                conn,
+                RUN_ID,
+                [
+                    _backlink_row(
+                        source_queries=["latest_backlinks"],
+                        url_from="https://later.example/changed",
+                        is_dofollow=False,
+                    )
+                ],
+            )
+
+        assert conn.execute("SELECT COUNT(*) FROM backlinks").fetchone()[0] == 1
+        stored = conn.execute("SELECT * FROM backlinks").fetchone()
+        assert json.loads(stored["source_queries"]) == [
+            "latest_backlinks",
+            "top_dr_backlinks",
+        ]
+        assert stored["url_from"] == "https://example.com/a"
+        assert stored["is_dofollow"] == 1
+        assert stored["era"] is None
+        assert json.loads(stored["raw_json"]) == {"url_from": "https://example.com/a"}
+    finally:
+        conn.close()
+
+
+def test_backlinks_are_rejected_without_a_parent_run(tmp_db: Path) -> None:
+    init_db(tmp_db)
+    conn = _open(tmp_db)
+    try:
+        with pytest.raises(sqlite3.IntegrityError):
+            with transaction(conn):
+                db.upsert_backlinks(conn, "missing", [_backlink_row()])
+    finally:
+        conn.close()
+
+
+def test_corrected_fixture_stores_98_unique_backlinks_from_100_rows(tmp_db: Path) -> None:
+    top_dr = parsers.parse_backlinks(
+        _fixture_payload("top_dr_backlinks"), "top_dr_backlinks"
+    )
+    latest = parsers.parse_backlinks(
+        _fixture_payload("latest_backlinks"), "latest_backlinks"
+    )
+
+    init_db(tmp_db)
+    conn = _open(tmp_db)
+    try:
+        with transaction(conn):
+            _insert_sample_run(conn)
+            db.upsert_backlinks(conn, RUN_ID, top_dr)
+            db.upsert_backlinks(conn, RUN_ID, latest)
+
+        assert conn.execute("SELECT COUNT(*) FROM backlinks").fetchone()[0] == 98
+        overlaps = conn.execute(
+            "SELECT COUNT(*) FROM backlinks "
+            "WHERE source_queries LIKE '%top_dr_backlinks%' "
+            "AND source_queries LIKE '%latest_backlinks%'"
+        ).fetchone()[0]
+        assert overlaps == 2
+    finally:
+        conn.close()
+
+    coverage = compute_coverage([], top_dr, latest)
+    assert coverage.rows == {"top_dr": 70, "latest": 30, "unique": 98}
+
+
+class _FixtureClient:
+    def __init__(self, payloads: dict[str, dict]) -> None:
+        self.payloads = payloads
+        self.closed = False
+
+    def execute(self, spec, raw_dir):
+        payload = self.payloads.get(spec.query_id, {})
+        rows = str(len(payload.get("backlinks", [])))
+        return models.RequestRecord(
+            query_id=spec.query_id,
+            endpoint=spec.endpoint,
+            page=spec.page,
+            params=dict(spec.params),
+            url=f"https://api.ahrefs.com/v3{spec.endpoint}",
+            status=200,
+            started_at="2026-11-24T08:43:40+00:00",
+            finished_at="2026-11-24T08:43:40+00:00",
+            attempts=1,
+            error=None,
+            parse_error=None,
+            rows=rows,
+            units_cost_total="50",
+            units_cost_total_actual="0",
+            units_cost_row="12",
+            cache="hit",
+            headers={},
+            payload=payload,
+            raw_path=None,
+        )
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_mocked_enrich_run_persists_both_backlink_slices_and_coverage(
+    tmp_path: Path, tmp_db: Path
+) -> None:
+    payloads = {
+        "stats": _fixture_payload("stats"),
+        "refdomains_history": _fixture_payload("refdomains_history"),
+        "metrics_history": _fixture_payload("metrics_history"),
+        "top_dr_backlinks": _fixture_payload("top_dr_backlinks"),
+        "latest_backlinks": _fixture_payload("latest_backlinks"),
+    }
+    settings = make_settings(tmp_path)
+
+    summary = run_enrich(
+        "smoke-fire.com",
+        settings=settings,
+        db_path=tmp_db,
+        client=_FixtureClient(payloads),
+        now=datetime(2026, 11, 24, 8, 43, 40, tzinfo=UTC),
+    )
+
+    assert summary.coverage.rows == {"top_dr": 70, "latest": 30, "unique": 98}
+
+    conn = _open(tmp_db)
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM backlinks").fetchone()[0] == 98
+        counts = {
+            row["query_id"]: row["row_count"]
+            for row in conn.execute(
+                "SELECT query_id, row_count FROM requests "
+                "WHERE query_id IN ('top_dr_backlinks', 'latest_backlinks')"
+            )
+        }
+        assert counts == {"top_dr_backlinks": 70, "latest_backlinks": 30}
+        overlaps = conn.execute(
+            "SELECT COUNT(*) FROM backlinks "
+            "WHERE source_queries LIKE '%top_dr_backlinks%' "
+            "AND source_queries LIKE '%latest_backlinks%'"
+        ).fetchone()[0]
+        assert overlaps == 2
+        stored_coverage = json.loads(
+            conn.execute("SELECT coverage_json FROM runs").fetchone()["coverage_json"]
+        )
+        assert stored_coverage["rows"] == {"top_dr": 70, "latest": 30, "unique": 98}
     finally:
         conn.close()

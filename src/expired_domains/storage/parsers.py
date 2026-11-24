@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
+import hashlib
+import html
+import json
+import re
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
-from expired_domains.models import Coverage, HistoryRow, StatsRow, Units
+import tldextract
+
+from expired_domains.models import BacklinkRow, Coverage, HistoryRow, StatsRow, Units
 
 STATS_SNAPSHOTS = ("live", "all_time")
 COVERAGE_HISTORY_MONTHS = 48
+
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+_WHITESPACE = re.compile(r"\s+")
+_SUFFIXES = tldextract.TLDExtract(suffix_list_urls=())
 
 
 def parse_stats(payload: dict[str, Any]) -> list[StatsRow]:
@@ -54,6 +66,100 @@ def parse_metrics_history(payload: dict[str, Any]) -> list[HistoryRow]:
     ]
 
 
+def normalize_url(value: str | None) -> str | None:
+    """Lowercase the scheme/host, strip default ports, and keep path casing."""
+    if value is None:
+        return None
+
+    try:
+        parts = urlsplit(value)
+        host = parts.hostname
+        if not parts.scheme or not host:
+            return value
+
+        scheme = parts.scheme.lower()
+        netloc = host.lower()
+        port = parts.port
+        if port is not None and port != _DEFAULT_PORTS.get(scheme):
+            netloc = f"{netloc}:{port}"
+        return urlunsplit((scheme, netloc, parts.path, parts.query, parts.fragment))
+    except ValueError:
+        return value
+
+
+def normalize_anchor(value: str | None) -> str | None:
+    """Unescape, collapse whitespace, trim, and lowercase an anchor."""
+    if value is None:
+        return None
+    return _WHITESPACE.sub(" ", html.unescape(value)).strip().lower()
+
+
+def root_domain(host: str | None) -> str | None:
+    """Return the registrable domain for ``host`` using the bundled PSL snapshot."""
+    if not host or any(character.isspace() for character in host):
+        return None
+    extracted = _SUFFIXES(host)
+    registrable = getattr(extracted, "top_domain_under_public_suffix", None)
+    return registrable or extracted.registered_domain or None
+
+
+def link_hash(
+    url_from: str | None,
+    url_to: str | None,
+    anchor_norm: str | None,
+    first_seen_link: str | None,
+) -> str:
+    """Return the §3.7 digest for one normalised backlink identity."""
+    payload = link_hash_input(url_from, url_to, anchor_norm, first_seen_link)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def parse_backlinks(payload: dict[str, Any], source_query: str) -> list[BacklinkRow]:
+    """Map ``backlinks[]`` to rows, normalising URLs and preserving raw values."""
+    rows: list[BacklinkRow] = []
+    for raw in payload.get("backlinks") or []:
+        raw_url_from = raw.get("url_from")
+        raw_url_to = raw.get("url_to")
+        url_from = normalize_url(raw_url_from)
+        url_to = normalize_url(raw_url_to)
+        anchor_raw = raw.get("anchor")
+        anchor_norm = normalize_anchor(anchor_raw)
+        domain_from = _url_host(url_from)
+        first_seen_link = raw.get("first_seen_link")
+
+        rows.append(
+            BacklinkRow(
+                link_hash=link_hash(raw_url_from, raw_url_to, anchor_norm, first_seen_link),
+                source_queries=[source_query],
+                url_from=url_from,
+                url_to=url_to,
+                domain_from=domain_from,
+                root_domain_from=root_domain(domain_from),
+                anchor_raw=anchor_raw,
+                anchor_norm=anchor_norm,
+                is_dofollow=raw.get("is_dofollow"),
+                domain_rating=raw.get("domain_rating_source"),
+                first_seen_link=first_seen_link,
+                era=None,
+                raw_json=json.dumps(raw, sort_keys=True, separators=(",", ":")),
+            )
+        )
+    return rows
+
+
+def merge_backlink_rows(rows: Sequence[BacklinkRow]) -> list[BacklinkRow]:
+    """Collapse rows sharing a ``link_hash`` and union their source queries."""
+    merged: dict[str, BacklinkRow] = {}
+    for row in rows:
+        existing = merged.get(row.link_hash)
+        if existing is None:
+            merged[row.link_hash] = row
+            continue
+        sources = sorted({*existing.source_queries, *row.source_queries})
+        merged[row.link_hash] = replace(existing, source_queries=sources)
+    return list(merged.values())
+
+
 def extract_units(headers: Mapping[str, str]) -> Units:
     """Read actual and billed API units, treating missing/invalid values as zero."""
     return Units(
@@ -64,11 +170,12 @@ def extract_units(headers: Mapping[str, str]) -> Units:
 
 def compute_coverage(
     stats_rows: Sequence[StatsRow],
-    backlink_rows: Sequence[Any] = (),
+    top_dr_rows: Sequence[BacklinkRow] = (),
+    latest_rows: Sequence[BacklinkRow] = (),
     anchor_rows: Sequence[Any] = (),
 ) -> Coverage:
     """Return the §3.8 coverage object for this slice."""
-    del backlink_rows, anchor_rows  # Populated by later slices.
+    del anchor_rows  # Populated by the anchor slice.
 
     stats: dict[str, int | None] = {
         "live": None,
@@ -84,16 +191,45 @@ def compute_coverage(
             stats["all_time"] = row.links
             stats["all_time_refdomains"] = row.refdomains
 
+    unique = len({row.link_hash for row in (*top_dr_rows, *latest_rows)})
     return Coverage(
         mode="top_n",
         stats=stats,
-        rows={"top_dr": 0, "latest": 0, "unique": 0},
+        rows={"top_dr": len(top_dr_rows), "latest": len(latest_rows), "unique": unique},
         top_anchors=0,
         lexicon_complete=True,
         history_months=COVERAGE_HISTORY_MONTHS,
         drop_date_source="unknown",
         prefilter=None,
     )
+
+
+def link_hash_input(
+    url_from: str | None,
+    url_to: str | None,
+    anchor_norm: str | None,
+    first_seen_link: str | None,
+) -> str:
+    """Assemble the canonical hash input shared by parsing and tests."""
+    return "\n".join(
+        (
+            "ahrefs",
+            normalize_url(url_from) or "",
+            normalize_url(url_to) or "",
+            anchor_norm or "",
+            first_seen_link or "",
+        )
+    )
+
+
+def _url_host(value: str | None) -> str | None:
+    """Return a lowercased hostname, or ``None`` when the URL cannot be parsed."""
+    if value is None:
+        return None
+    try:
+        return urlsplit(value).hostname
+    except ValueError:
+        return None
 
 
 def _normalise_date(value: str) -> str:
