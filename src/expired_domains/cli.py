@@ -34,6 +34,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     enrich.add_argument("domain", help="Bare domain to retrieve, e.g. example.com")
     enrich.add_argument(
+        "--force",
+        action="store_true",
+        help="Fetch a new run even when a run already exists for today.",
+    )
+    enrich.add_argument(
         "--db",
         type=Path,
         default=None,
@@ -53,7 +58,12 @@ def main(argv: Sequence[str] | None = None, *, settings: Settings | None = None)
 
     resolved = settings if settings is not None else load_settings()
     try:
-        summary = run_enrich(args.domain, settings=resolved, db_path=args.db)
+        summary = run_enrich(
+            args.domain,
+            settings=resolved,
+            db_path=args.db,
+            force=args.force,
+        )
     except ConfigError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -64,6 +74,10 @@ def main(argv: Sequence[str] | None = None, *, settings: Settings | None = None)
 
 def _print_summary(summary: RunSummary) -> None:
     """Print one line per request followed by the run summary."""
+    if summary.message:
+        print(summary.message)
+        return
+
     for record in summary.requests:
         units = record.units
         line = (
@@ -81,7 +95,10 @@ def _print_summary(summary: RunSummary) -> None:
     print(f"backlinks: {_backlinks_line(summary.coverage)}")
     print(f"units: actual={summary.units.actual} billed={summary.units.billed}")
     if summary.error:
-        print(f"error: {summary.error}", file=sys.stderr)
+        failures = ", ".join(
+            f"{query_id}: {message}" for query_id, message in summary.error.items()
+        )
+        print(f"failures: {failures}", file=sys.stderr)
 
 
 def _history_line(requests: Sequence[RequestRecord]) -> str:

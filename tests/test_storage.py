@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -56,6 +56,31 @@ def _insert_sample_run(conn: sqlite3.Connection, *, units_actual: int = 0) -> No
         coverage_json=COVERAGE_JSON,
         units_actual=units_actual,
         error=None,
+    )
+
+
+def _insert_run_row(
+    conn: sqlite3.Connection,
+    *,
+    run_id: str,
+    fetched_at: str,
+    units_actual: int = 0,
+    error: str | None = None,
+) -> None:
+    insert_run(
+        conn,
+        run_id=run_id,
+        domain="example.com",
+        mode="domain",
+        tier="standard",
+        prefilter_batch=None,
+        drop_date=None,
+        drop_date_source="unknown",
+        fetched_at=fetched_at,
+        config_json=CONFIG_JSON,
+        coverage_json=COVERAGE_JSON,
+        units_actual=units_actual,
+        error=error,
     )
 
 
@@ -202,6 +227,81 @@ def test_coverage_and_config_json_round_trip_through_runs(tmp_db: Path) -> None:
         conn.close()
 
 
+def test_has_run_on_date_matches_the_utc_date_prefix(tmp_db: Path) -> None:
+    init_db(tmp_db)
+    conn = _open(tmp_db)
+    try:
+        with transaction(conn):
+            _insert_run_row(
+                conn,
+                run_id=RUN_ID,
+                fetched_at="2026-11-24T23:30:00+00:00",
+            )
+
+        assert db.has_run_on_date(conn, "example.com", date(2026, 11, 24)) is True
+        assert db.has_run_on_date(conn, "example.com", date(2026, 11, 23)) is False
+        assert db.has_run_on_date(conn, "other.com", date(2026, 11, 24)) is False
+    finally:
+        conn.close()
+
+
+def test_latest_run_id_for_date_returns_the_newest_matching_run(tmp_db: Path) -> None:
+    init_db(tmp_db)
+    conn = _open(tmp_db)
+    early = "example.com:20261124T010000Z:ahrefs"
+    late = "example.com:20261124T020000Z:ahrefs"
+    try:
+        with transaction(conn):
+            _insert_run_row(
+                conn,
+                run_id=late,
+                fetched_at="2026-11-24T02:00:00+00:00",
+            )
+            _insert_run_row(
+                conn,
+                run_id=early,
+                fetched_at="2026-11-24T01:00:00+00:00",
+            )
+            _insert_run_row(
+                conn,
+                run_id="example.com:20261123T230000Z:ahrefs",
+                fetched_at="2026-11-23T23:00:00+00:00",
+            )
+
+        assert db.latest_run_id_for_date(conn, "example.com", date(2026, 11, 24)) == late
+        assert db.latest_run_id_for_date(conn, "example.com", date(2026, 11, 22)) is None
+    finally:
+        conn.close()
+
+
+def test_finalising_a_failed_run_round_trips_error_and_units(tmp_db: Path) -> None:
+    init_db(tmp_db)
+    conn = _open(tmp_db)
+    error = {"metrics_history": "HTTP 500 after 6 attempt(s)"}
+    try:
+        with transaction(conn):
+            _insert_run_row(
+                conn,
+                run_id=RUN_ID,
+                fetched_at="2026-11-24T00:00:00+00:00",
+            )
+
+        with transaction(conn):
+            _insert_run_row(
+                conn,
+                run_id=RUN_ID,
+                fetched_at="2026-11-24T00:00:00+00:00",
+                units_actual=2500,
+                error=json.dumps(error, sort_keys=True),
+            )
+
+        stored = conn.execute("SELECT * FROM runs WHERE run_id = ?", (RUN_ID,)).fetchone()
+        assert stored["units_actual"] == 2500
+        assert json.loads(stored["error"]) == error
+    finally:
+        conn.close()
+
+
 def test_requests_are_rejected_without_a_parent_run(tmp_db: Path) -> None:
     init_db(tmp_db)
     conn = _open(tmp_db)
@@ -223,7 +323,6 @@ def test_requests_are_rejected_without_a_parent_run(tmp_db: Path) -> None:
                 )
     finally:
         conn.close()
-
 
 def test_history_table_exists_with_composite_primary_key(tmp_db: Path) -> None:
     init_db(tmp_db)

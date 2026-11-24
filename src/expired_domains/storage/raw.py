@@ -6,6 +6,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from expired_domains.config import PROJECT_ROOT
 from expired_domains.models import RequestRecord
@@ -45,6 +46,14 @@ def write_request_files(run_dir: Path, record: RequestRecord) -> str:
 
     relative = os.path.relpath(payload_path, PROJECT_ROOT)
     return Path(relative).as_posix()
+
+
+def write_manifest(run_dir: Path, manifest: dict[str, Any]) -> Path:
+    """Write a deterministic ``manifest.json`` into a fresh run directory."""
+    path = Path(run_dir) / "manifest.json"
+    text = json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True)
+    _write_exclusive(path, text)
+    return path
 
 
 def _write_exclusive(path: Path, text: str) -> None:

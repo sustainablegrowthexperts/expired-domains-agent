@@ -111,9 +111,8 @@ class AhrefsClient:
             payload=payload,
         )
 
-        if record.status is not None and record.status < 400 and payload is not None:
-            raw_path = write_request_files(run_dir, record)
-            record = replace(record, raw_path=raw_path)
+        raw_path = write_request_files(run_dir, record)
+        record = replace(record, raw_path=raw_path)
 
         return record
 

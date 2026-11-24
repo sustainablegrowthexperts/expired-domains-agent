@@ -15,6 +15,7 @@ HISTORY_DATE_FROM = "2022-11-01"
 def test_build_run_queries_returns_nine_specs_in_order() -> None:
     specs = build_run_queries("example.com", RUN_DATE)
 
+    assert len(specs) == 9
     assert [spec.query_id for spec in specs] == [
         "limits_before",
         "stats",

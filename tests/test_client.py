@@ -154,6 +154,22 @@ def test_six_consecutive_500s_are_recorded_without_raising(
     assert record.status == 500
     assert record.attempts == 6
     assert record.error is not None
+    assert record.raw_path is not None
+
+    payload_path = run_dir / "stats.p0.json"
+    headers_path = run_dir / "stats.p0.headers.json"
+    assert payload_path.is_file()
+    assert headers_path.is_file()
+
+    raw = json.loads(payload_path.read_text(encoding="utf-8"))
+    assert raw["payload"] is None
+    assert raw["request"]["query_id"] == "stats"
+    assert raw["request"]["status"] == 500
+    assert raw["request"]["attempts"] == 6
+    assert raw["request"]["error"] == record.error
+
+    saved_headers = json.loads(headers_path.read_text(encoding="utf-8"))
+    assert "content-type" in saved_headers
 
 
 def test_401_is_not_retried(tmp_path: Path, settings_factory) -> None:

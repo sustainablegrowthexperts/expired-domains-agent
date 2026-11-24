@@ -173,6 +173,7 @@ class RunSummary:
     units: Units
     error: dict[str, str] | None
     exit_code: int
+    message: str | None = None
 
 
 def _as_int(value: str | None) -> int:

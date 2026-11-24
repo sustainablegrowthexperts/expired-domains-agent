@@ -6,6 +6,7 @@ import json
 import sqlite3
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
+from datetime import date as date_type
 from pathlib import Path
 from typing import Any
 
@@ -150,6 +151,27 @@ def insert_run(
         ),
         conflict_columns=("run_id",),
     )
+
+
+def has_run_on_date(
+    conn: sqlite3.Connection, domain: str, date: date_type | str
+) -> bool:
+    """Return True when ``domain`` already has a run on the UTC ``date``."""
+    return latest_run_id_for_date(conn, domain, date) is not None
+
+
+def latest_run_id_for_date(
+    conn: sqlite3.Connection, domain: str, date: date_type | str
+) -> str | None:
+    """Return the newest run ID for ``domain`` on the UTC ``date``, if any."""
+    day = date.isoformat() if isinstance(date, date_type) else str(date)
+    row = conn.execute(
+        "SELECT run_id FROM runs "
+        "WHERE domain = ? AND substr(fetched_at, 1, 10) = ? "
+        "ORDER BY fetched_at DESC LIMIT 1",
+        (domain, day[:10]),
+    ).fetchone()
+    return row["run_id"] if row is not None else None
 
 
 def upsert_request(

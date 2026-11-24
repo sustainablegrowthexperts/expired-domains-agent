@@ -1,7 +1,7 @@
 ---
 id: task-005
 title: "[Slice] Orchestrate the full nine-request run with guards and failure reporting"
-status: pending
+status: completed
 depends_on: ["task-004"]
 target_files:
   - "src/expired_domains/ahrefs/client.py"
