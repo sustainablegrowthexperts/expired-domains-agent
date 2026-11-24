@@ -6,6 +6,8 @@ import json
 from dataclasses import asdict
 from typing import Any
 
+import pytest
+
 import expired_domains.storage.parsers as parsers
 from conftest import reference_run_dir
 from expired_domains.models import StatsRow, Units
@@ -353,3 +355,152 @@ def test_compute_coverage_reports_backlink_slice_counts() -> None:
     data = asdict(compute_coverage(parse_stats(_reference_stats_payload()), top_dr, latest))
 
     assert data["rows"] == {"top_dr": 70, "latest": 30, "unique": 98}
+
+
+LESBEEF_RUN = "kanuksheepskinproducts.com_20261124T083038Z_ahrefs"
+COFFEE_RUN = "longbeachcoffee.com_20261124T083044Z_ahrefs"
+ABIPR_RUN = "abipr.com_20261124T083049Z_ahrefs"
+
+LEXICON_RUN_EXPECTATIONS = [
+    (STATS_RUN, 165, True),
+    (TRAFFIC_RUN, 250, False),
+    (LESBEEF_RUN, 250, False),
+    (COFFEE_RUN, 188, True),
+    (ABIPR_RUN, 168, True),
+]
+
+
+def _lexicon():
+    from expired_domains.ahrefs.lexicon import load_lexicon
+
+    return load_lexicon()
+
+
+def test_parse_anchors_maps_the_corrected_lexicon_fixture() -> None:
+    rows = parsers.parse_anchors(
+        _reference_payload(STATS_RUN, "lexicon_anchors"), "lexicon_anchors", _lexicon()
+    )
+
+    assert len(rows) == 165
+    assert {row.source_query for row in rows} == {"lexicon_anchors"}
+
+    first = rows[0]
+    assert first.anchor_raw.startswith("Scale smoke-fire.com with backlinks")
+    assert first.anchor_norm == first.anchor_raw.lower()
+    assert first.links_to_target == 1
+    assert first.dofollow_links == 0
+    assert first.refdomains == 1
+    assert first.first_seen == "2026-06-12T19:19:08Z"
+    assert first.last_seen == "2026-08-29T13:52:35Z"
+    assert "backlink" in first.lexicon_terms
+    assert "link_selling_seo" in first.lexicon_categories
+    assert json.loads(first.raw_json)["anchor"] == first.anchor_raw
+
+
+def test_parse_anchors_nulls_top_anchor_columns_not_requested_by_select() -> None:
+    rows = parsers.parse_anchors(
+        _reference_payload(STATS_RUN, "top_anchors"), "top_anchors", _lexicon()
+    )
+
+    assert len(rows) == 50
+    assert {row.source_query for row in rows} == {"top_anchors"}
+    assert all(row.refdomains is None for row in rows)
+    assert all(row.last_seen is None for row in rows)
+    assert rows[0].links_to_target == 291
+    assert rows[0].dofollow_links == 291
+    assert rows[0].first_seen == "2026-09-17T18:46:29Z"
+
+
+def test_parse_anchors_reports_the_123eft_truncated_corpus() -> None:
+    rows = parsers.parse_anchors(
+        _reference_payload(TRAFFIC_RUN, "lexicon_anchors"), "lexicon_anchors", _lexicon()
+    )
+
+    assert len(rows) == 250
+    assert rows[0].anchor_raw == "123eft.com ranks higher through SeoKuni.com"
+    assert rows[0].lexicon_terms == ["seo"]
+    assert rows[0].lexicon_categories == ["link_selling_seo"]
+
+
+def test_parse_anchors_normalises_entities_case_and_whitespace_but_keeps_raw() -> None:
+    rows = parsers.parse_anchors(
+        {
+            "anchors": [
+                {
+                    "anchor": "  C4SINO &amp;\n\tCasino  ",
+                    "links_to_target": 2,
+                    "dofollow_links": 1,
+                    "refdomains": 1,
+                    "first_seen": "2026-01-02T03:04:05Z",
+                    "last_seen": None,
+                }
+            ]
+        },
+        "lexicon_anchors",
+        _lexicon(),
+    )
+
+    assert len(rows) == 1
+    assert rows[0].anchor_raw == "  C4SINO &amp;\n\tCasino  "
+    assert rows[0].anchor_norm == "c4sino & casino"
+    assert set(rows[0].lexicon_terms) == {"casino", "c4sino"}
+    assert rows[0].lexicon_categories == ["evasions", "gambling"]
+    assert rows[0].refdomains == 1
+    assert rows[0].last_seen is None
+
+
+def test_parse_anchors_never_drops_rows_without_a_local_match() -> None:
+    rows = parsers.parse_anchors(
+        {
+            "anchors": [
+                {"anchor": "Plain brand anchor", "links_to_target": 1},
+                {"anchor": None, "links_to_target": 1},
+            ]
+        },
+        "lexicon_anchors",
+        _lexicon(),
+    )
+
+    assert len(rows) == 2
+    assert rows[0].lexicon_terms == []
+    assert rows[0].lexicon_categories == []
+    assert rows[1].anchor_raw is None
+    assert rows[1].anchor_norm is None
+    assert rows[1].lexicon_terms == []
+
+
+def test_classify_is_case_insensitive_substring_matching_over_anchor_norm() -> None:
+    from expired_domains.ahrefs.lexicon import classify
+
+    lexicon = _lexicon()
+
+    assert classify("Seoul", lexicon) == (["seo"], ["link_selling_seo"])
+    assert classify("C4SINO", lexicon) == (["c4sino"], ["evasions"])
+    assert classify("plain anchor", lexicon) == ([], [])
+    assert classify(None, lexicon) == ([], [])
+    assert classify("", lexicon) == ([], [])
+    assert classify("Casino c4sino PBN", lexicon) == (
+        ["casino", "pbn", "c4sino"],
+        ["evasions", "gambling", "link_selling_seo"],
+    )
+
+
+@pytest.mark.parametrize(("run_name", "lexicon_rows", "complete"), LEXICON_RUN_EXPECTATIONS)
+def test_compute_coverage_reports_anchor_counts_and_lexicon_completion(
+    run_name: str, lexicon_rows: int, complete: bool
+) -> None:
+    lexicon = _lexicon()
+    lexicon_anchors = parsers.parse_anchors(
+        _reference_payload(run_name, "lexicon_anchors"), "lexicon_anchors", lexicon
+    )
+    top_anchors = parsers.parse_anchors(
+        _reference_payload(run_name, "top_anchors"), "top_anchors", lexicon
+    )
+
+    assert len(lexicon_anchors) == lexicon_rows
+    assert len(top_anchors) == 50
+
+    data = asdict(compute_coverage([], [], [], [*lexicon_anchors, *top_anchors]))
+
+    assert data["top_anchors"] == 50
+    assert data["lexicon_complete"] is complete

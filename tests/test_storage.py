@@ -439,7 +439,7 @@ class _FixtureClient:
 
     def execute(self, spec, raw_dir):
         payload = self.payloads.get(spec.query_id, {})
-        rows = str(len(payload.get("backlinks", [])))
+        rows = str(len(payload.get("backlinks", payload.get("anchors", []))))
         return models.RequestRecord(
             query_id=spec.query_id,
             endpoint=spec.endpoint,
@@ -509,5 +509,215 @@ def test_mocked_enrich_run_persists_both_backlink_slices_and_coverage(
             conn.execute("SELECT coverage_json FROM runs").fetchone()["coverage_json"]
         )
         assert stored_coverage["rows"] == {"top_dr": 70, "latest": 30, "unique": 98}
+    finally:
+        conn.close()
+
+
+def _anchor_row(**overrides) -> models.AnchorRow:
+    values = {
+        "source_query": "lexicon_anchors",
+        "anchor_raw": "Casino &amp; Slots",
+        "anchor_norm": "casino & slots",
+        "links_to_target": 3,
+        "dofollow_links": 2,
+        "refdomains": 1,
+        "first_seen": "2026-01-02T03:04:05Z",
+        "last_seen": "2026-02-03T04:05:06Z",
+        "lexicon_terms": ["casino", "slot"],
+        "lexicon_categories": ["gambling"],
+        "raw_json": '{"anchor": "Casino &amp; Slots"}',
+    }
+    values.update(overrides)
+    return models.AnchorRow(**values)
+
+
+def test_anchors_table_exists_with_composite_primary_key(tmp_db: Path) -> None:
+    init_db(tmp_db)
+
+    conn = _open(tmp_db)
+    try:
+        tables = {
+            row["name"]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
+        assert "anchors" in tables
+        assert _primary_key(conn, "anchors") == ["run_id", "source_query", "anchor_norm"]
+    finally:
+        conn.close()
+
+
+def test_upsert_anchors_is_idempotent_and_updates_metrics_on_conflict(tmp_db: Path) -> None:
+    init_db(tmp_db)
+    conn = _open(tmp_db)
+    try:
+        with transaction(conn):
+            _insert_sample_run(conn)
+            db.upsert_anchors(conn, RUN_ID, [_anchor_row()])
+            db.upsert_anchors(
+                conn,
+                RUN_ID,
+                [
+                    _anchor_row(
+                        links_to_target=9,
+                        dofollow_links=8,
+                        refdomains=4,
+                        last_seen=None,
+                        anchor_raw="Changed",
+                    )
+                ],
+            )
+
+        assert conn.execute("SELECT COUNT(*) FROM anchors").fetchone()[0] == 1
+        stored = conn.execute("SELECT * FROM anchors").fetchone()
+        assert stored["anchor_raw"] == "Changed"
+        assert stored["links_to_target"] == 9
+        assert stored["dofollow_links"] == 8
+        assert stored["refdomains"] == 4
+        assert stored["last_seen"] is None
+    finally:
+        conn.close()
+
+
+def test_anchors_json_columns_round_trip_as_compact_arrays(tmp_db: Path) -> None:
+    init_db(tmp_db)
+    conn = _open(tmp_db)
+    try:
+        with transaction(conn):
+            _insert_sample_run(conn)
+            db.upsert_anchors(
+                conn,
+                RUN_ID,
+                [
+                    _anchor_row(
+                        lexicon_terms=["casino", "slot"],
+                        lexicon_categories=["gambling", "link_selling_seo"],
+                    )
+                ],
+            )
+
+        stored = conn.execute("SELECT * FROM anchors").fetchone()
+        assert stored["lexicon_terms"] == '["casino","slot"]'
+        assert stored["lexicon_categories"] == '["gambling","link_selling_seo"]'
+        assert json.loads(stored["lexicon_terms"]) == ["casino", "slot"]
+        assert json.loads(stored["lexicon_categories"]) == ["gambling", "link_selling_seo"]
+        assert stored["refdomains"] == 1
+        assert stored["last_seen"] == "2026-02-03T04:05:06Z"
+        assert json.loads(stored["raw_json"]) == {"anchor": "Casino &amp; Slots"}
+    finally:
+        conn.close()
+
+
+def test_both_anchor_source_queries_coexist_for_one_run(tmp_db: Path) -> None:
+    init_db(tmp_db)
+    conn = _open(tmp_db)
+    try:
+        with transaction(conn):
+            _insert_sample_run(conn)
+            db.upsert_anchors(
+                conn, RUN_ID, [_anchor_row(source_query="lexicon_anchors")]
+            )
+            db.upsert_anchors(
+                conn,
+                RUN_ID,
+                [
+                    _anchor_row(
+                        source_query="top_anchors",
+                        refdomains=None,
+                        last_seen=None,
+                    )
+                ],
+            )
+
+        assert conn.execute("SELECT COUNT(*) FROM anchors").fetchone()[0] == 2
+        counts = {
+            row["source_query"]: row["count"]
+            for row in conn.execute(
+                "SELECT source_query, COUNT(*) AS count FROM anchors GROUP BY source_query"
+            )
+        }
+        assert counts == {"lexicon_anchors": 1, "top_anchors": 1}
+        top = conn.execute(
+            "SELECT * FROM anchors WHERE source_query = 'top_anchors'"
+        ).fetchone()
+        assert top["refdomains"] is None
+        assert top["last_seen"] is None
+    finally:
+        conn.close()
+
+
+def test_anchors_are_rejected_without_a_parent_run(tmp_db: Path) -> None:
+    init_db(tmp_db)
+    conn = _open(tmp_db)
+    try:
+        with pytest.raises(sqlite3.IntegrityError):
+            with transaction(conn):
+                db.upsert_anchors(conn, "missing", [_anchor_row()])
+    finally:
+        conn.close()
+
+
+def test_mocked_enrich_run_persists_anchor_slices_and_lexicon_version(
+    tmp_path: Path, tmp_db: Path
+) -> None:
+    payloads = {
+        "stats": _fixture_payload("stats"),
+        "refdomains_history": _fixture_payload("refdomains_history"),
+        "metrics_history": _fixture_payload("metrics_history"),
+        "top_dr_backlinks": _fixture_payload("top_dr_backlinks"),
+        "latest_backlinks": _fixture_payload("latest_backlinks"),
+        "lexicon_anchors": _fixture_payload("lexicon_anchors"),
+        "top_anchors": _fixture_payload("top_anchors"),
+    }
+    settings = make_settings(tmp_path)
+
+    summary = run_enrich(
+        "smoke-fire.com",
+        settings=settings,
+        db_path=tmp_db,
+        client=_FixtureClient(payloads),
+        now=datetime(2026, 11, 24, 8, 43, 40, tzinfo=UTC),
+    )
+
+    assert summary.coverage.top_anchors == 50
+    assert summary.coverage.lexicon_complete is True
+
+    conn = _open(tmp_db)
+    try:
+        counts = {
+            row["source_query"]: row["count"]
+            for row in conn.execute(
+                "SELECT source_query, COUNT(*) AS count FROM anchors GROUP BY source_query"
+            )
+        }
+        assert counts == {"lexicon_anchors": 165, "top_anchors": 50}
+
+        stored = conn.execute(
+            "SELECT * FROM anchors WHERE source_query = 'top_anchors' LIMIT 1"
+        ).fetchone()
+        assert stored["refdomains"] is None
+        assert stored["last_seen"] is None
+        assert {"backlink", "seo"} <= set(json.loads(stored["lexicon_terms"]))
+        assert json.loads(stored["lexicon_categories"]) == ["link_selling_seo"]
+
+        request_counts = {
+            row["query_id"]: row["row_count"]
+            for row in conn.execute(
+                "SELECT query_id, row_count FROM requests "
+                "WHERE query_id IN ('lexicon_anchors', 'top_anchors')"
+            )
+        }
+        assert request_counts == {"lexicon_anchors": 165, "top_anchors": 50}
+
+        config = json.loads(
+            conn.execute("SELECT config_json FROM runs").fetchone()["config_json"]
+        )
+        assert config["lexicon_version"] == "v1"
+        assert config["top_anchor_rows"] == 50
+
+        stored_coverage = json.loads(
+            conn.execute("SELECT coverage_json FROM runs").fetchone()["coverage_json"]
+        )
+        assert stored_coverage["top_anchors"] == 50
+        assert stored_coverage["lexicon_complete"] is True
     finally:
         conn.close()

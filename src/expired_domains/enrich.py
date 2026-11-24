@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from expired_domains.ahrefs.client import AhrefsClient
+from expired_domains.ahrefs.lexicon import load_lexicon
 from expired_domains.ahrefs.queries import build_run_queries
 from expired_domains.config import Settings, load_settings
 from expired_domains.models import RequestRecord, RunSummary, Units
@@ -16,6 +17,7 @@ from expired_domains.storage.db import (
     init_db,
     insert_run,
     transaction,
+    upsert_anchors,
     upsert_backlinks,
     upsert_history_rows,
     upsert_request,
@@ -24,6 +26,7 @@ from expired_domains.storage.db import (
 from expired_domains.storage.parsers import (
     compute_coverage,
     merge_backlink_rows,
+    parse_anchors,
     parse_backlinks,
     parse_metrics_history,
     parse_refdomains_history,
@@ -48,7 +51,7 @@ def run_enrich(
     client: AhrefsClient | None = None,
     now: datetime | None = None,
 ) -> RunSummary:
-    """Retrieve the stats slice for ``domain`` and persist its evidence."""
+    """Retrieve the configured slices for ``domain`` and persist their evidence."""
     resolved = settings if settings is not None else load_settings()
     resolved.require_ahrefs_key()
 
@@ -62,12 +65,14 @@ def run_enrich(
 
     owns_client = client is None
     active_client = client if client is not None else AhrefsClient(resolved)
+    lexicon = load_lexicon()
     specs = build_run_queries(domain, run_date)
     requests: list[RequestRecord] = []
     stats_rows = []
     top_dr_rows = []
     latest_rows = []
     backlink_rows = []
+    anchor_rows = []
     failures: dict[str, str] = {}
 
     try:
@@ -79,6 +84,7 @@ def run_enrich(
                     run_id=run_id,
                     domain=domain,
                     fetched_at=now_utc.isoformat(),
+                    config_json=_config_json(lexicon.version),
                     coverage_json=json.dumps(compute_coverage([]).to_dict(), sort_keys=True),
                     units_actual=0,
                     error=None,
@@ -130,13 +136,20 @@ def run_enrich(
                         elif spec.query_id == "latest_backlinks":
                             latest_rows = parse_backlinks(record.payload or {}, spec.query_id)
                             backlink_rows.extend(latest_rows)
+                        elif spec.query_id in ("lexicon_anchors", "top_anchors"):
+                            anchor_rows.extend(
+                                parse_anchors(record.payload or {}, spec.query_id, lexicon)
+                            )
 
                     message = record.error or record.parse_error
                     if message:
                         failures[record.query_id] = message
 
                 upsert_backlinks(conn, run_id, merge_backlink_rows(backlink_rows))
-                coverage = compute_coverage(stats_rows, top_dr_rows, latest_rows)
+                upsert_anchors(conn, run_id, anchor_rows)
+                coverage = compute_coverage(
+                    stats_rows, top_dr_rows, latest_rows, anchor_rows
+                )
                 units = _totals(requests)
                 error = failures or None
                 _write_run(
@@ -144,6 +157,7 @@ def run_enrich(
                     run_id=run_id,
                     domain=domain,
                     fetched_at=now_utc.isoformat(),
+                    config_json=_config_json(lexicon.version),
                     coverage_json=json.dumps(coverage.to_dict(), sort_keys=True),
                     units_actual=units.actual,
                     error=json.dumps(error, sort_keys=True) if error else None,
@@ -166,12 +180,18 @@ def run_enrich(
     )
 
 
+def _config_json(lexicon_version: str) -> str:
+    """Return the run configuration including the loaded lexicon version."""
+    return json.dumps({**CONFIG, "lexicon_version": lexicon_version}, sort_keys=True)
+
+
 def _write_run(
     conn: Any,
     *,
     run_id: str,
     domain: str,
     fetched_at: str,
+    config_json: str,
     coverage_json: str,
     units_actual: int,
     error: str | None,
@@ -187,7 +207,7 @@ def _write_run(
         drop_date=None,
         drop_date_source="unknown",
         fetched_at=fetched_at,
-        config_json=json.dumps(CONFIG, sort_keys=True),
+        config_json=config_json,
         coverage_json=coverage_json,
         units_actual=units_actual,
         error=error,

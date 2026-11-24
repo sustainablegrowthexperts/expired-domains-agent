@@ -63,6 +63,23 @@ class BacklinkRow:
 
 
 @dataclass(frozen=True)
+class AnchorRow:
+    """One ``anchors`` row, after normalisation and local classification."""
+
+    source_query: str
+    anchor_raw: str | None
+    anchor_norm: str | None
+    links_to_target: int | None
+    dofollow_links: int | None
+    refdomains: int | None
+    first_seen: str | None
+    last_seen: str | None
+    lexicon_terms: list[str]
+    lexicon_categories: list[str]
+    raw_json: str
+
+
+@dataclass(frozen=True)
 class RequestRecord:
     """Normalised result of one provider request."""
 

@@ -1,7 +1,7 @@
 ---
 id: task-004
 title: "[Slice] Retrieve anchor slices with lexicon classification and truncation flag"
-status: pending
+status: completed
 depends_on: ["task-003"]
 target_files:
   - "config/lexicon/v1.json"

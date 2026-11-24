@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date
 
 import expired_domains.ahrefs.queries as queries
@@ -11,7 +12,7 @@ RUN_DATE = date(2026, 11, 24)
 HISTORY_DATE_FROM = "2022-11-01"
 
 
-def test_build_run_queries_returns_seven_specs_in_order() -> None:
+def test_build_run_queries_returns_nine_specs_in_order() -> None:
     specs = build_run_queries("example.com", RUN_DATE)
 
     assert [spec.query_id for spec in specs] == [
@@ -21,6 +22,8 @@ def test_build_run_queries_returns_seven_specs_in_order() -> None:
         "metrics_history",
         "top_dr_backlinks",
         "latest_backlinks",
+        "lexicon_anchors",
+        "top_anchors",
         "limits_after",
     ]
     assert [spec.endpoint for spec in specs] == [
@@ -30,6 +33,8 @@ def test_build_run_queries_returns_seven_specs_in_order() -> None:
         "/site-explorer/metrics-history",
         "/site-explorer/all-backlinks",
         "/site-explorer/all-backlinks",
+        "/site-explorer/anchors",
+        "/site-explorer/anchors",
         "/subscription-info/limits-and-usage",
     ]
     assert all(spec.page == 0 for spec in specs)
@@ -152,3 +157,102 @@ def test_backlink_specs_share_every_parameter_except_limit_and_order() -> None:
     assert top_dr.params["history"] == latest.params["history"] == "live"
     assert top_dr.params["aggregation"] == latest.params["aggregation"] == "1_per_domain"
     assert top_dr.params["select"] == latest.params["select"] == BACKLINK_SELECT
+
+
+LEXICON_CATEGORY_COUNTS = {
+    "gambling": 14,
+    "pharma": 7,
+    "adult": 6,
+    "link_selling_seo": 6,
+    "evasions": 3,
+}
+
+LEXICON_ANCHOR_SELECT = (
+    "anchor,links_to_target,dofollow_links,refdomains,first_seen,last_seen"
+)
+TOP_ANCHOR_SELECT = "anchor,links_to_target,dofollow_links,first_seen"
+
+
+def test_lexicon_file_parses_with_version_five_categories_and_36_unique_terms() -> None:
+    from expired_domains.ahrefs.lexicon import load_lexicon
+
+    lexicon = load_lexicon()
+
+    assert lexicon.version == "v1"
+    assert list(lexicon.categories) == list(LEXICON_CATEGORY_COUNTS)
+    assert {
+        category: len(terms) for category, terms in lexicon.categories.items()
+    } == LEXICON_CATEGORY_COUNTS
+    assert len(lexicon.terms) == 36
+    assert len(set(lexicon.terms)) == 36
+    assert {"카지노", "바카라", "토토", "казино"} <= set(lexicon.terms)
+
+
+def test_build_where_yields_one_or_with_all_36_terms() -> None:
+    from expired_domains.ahrefs.lexicon import build_where, load_lexicon
+
+    lexicon = load_lexicon()
+    where = build_where(lexicon)
+    expected_clauses = [
+        {"field": "anchor", "is": ["isubstring", term]} for term in lexicon.terms
+    ]
+
+    assert json.loads(where) == {"or": expected_clauses}
+    assert where == json.dumps({"or": expected_clauses}, separators=(",", ":"), ensure_ascii=False)
+    assert len(json.loads(where)["or"]) == 36
+    returned_terms = {entry["is"][1] for entry in json.loads(where)["or"]}
+    assert returned_terms == set(lexicon.terms)
+    assert {
+        "pbn",
+        "backlink",
+        "guest post",
+        "seo",
+        "link building",
+        "buy links",
+    } <= returned_terms
+    assert "카지노" in where
+
+
+def test_lexicon_anchors_spec_has_exact_params() -> None:
+    from expired_domains.ahrefs.lexicon import build_where, load_lexicon
+
+    spec = build_run_queries("example.com", RUN_DATE)[6]
+
+    assert spec.query_id == "lexicon_anchors"
+    assert spec.endpoint == "/site-explorer/anchors"
+    assert spec.params == {
+        "target": "example.com",
+        "mode": "domain",
+        "history": "all_time",
+        "limit": "250",
+        "select": LEXICON_ANCHOR_SELECT,
+        "where": build_where(load_lexicon()),
+    }
+    assert "offset" not in spec.params
+
+
+def test_top_anchors_spec_has_exact_params() -> None:
+    spec = build_run_queries("example.com", RUN_DATE)[7]
+
+    assert spec.query_id == "top_anchors"
+    assert spec.endpoint == "/site-explorer/anchors"
+    assert spec.params == {
+        "target": "example.com",
+        "mode": "domain",
+        "history": "live",
+        "limit": "50",
+        "order_by": "links_to_target:desc",
+        "select": TOP_ANCHOR_SELECT,
+    }
+    assert "offset" not in spec.params
+
+
+def test_anchor_specs_never_paginate_and_differ_only_in_anchor_parameters() -> None:
+    lexicon_anchors, top_anchors = build_run_queries("example.com", RUN_DATE)[6:8]
+
+    assert "offset" not in lexicon_anchors.params
+    assert "offset" not in top_anchors.params
+    assert lexicon_anchors.params["history"] == "all_time"
+    assert top_anchors.params["history"] == "live"
+    assert "order_by" not in lexicon_anchors.params
+    assert top_anchors.params["order_by"] == "links_to_target:desc"

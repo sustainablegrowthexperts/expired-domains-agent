@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from expired_domains.models import BacklinkRow, HistoryRow
+from expired_domains.models import AnchorRow, BacklinkRow, HistoryRow
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
@@ -59,6 +59,21 @@ _BACKLINK_COLUMNS = (
     "domain_rating",
     "first_seen_link",
     "era",
+    "raw_json",
+)
+
+_ANCHOR_COLUMNS = (
+    "run_id",
+    "source_query",
+    "anchor_raw",
+    "anchor_norm",
+    "links_to_target",
+    "dofollow_links",
+    "refdomains",
+    "first_seen",
+    "last_seen",
+    "lexicon_terms",
+    "lexicon_categories",
     "raw_json",
 )
 
@@ -242,6 +257,35 @@ def upsert_backlinks(
                 row.era,
                 row.raw_json,
             ),
+        )
+
+
+def upsert_anchors(
+    conn: sqlite3.Connection,
+    run_id: str,
+    rows: Iterable[AnchorRow],
+) -> None:
+    """Insert anchors, refreshing metrics and lexical columns on conflict."""
+    for row in rows:
+        _upsert(
+            conn,
+            table="anchors",
+            columns=_ANCHOR_COLUMNS,
+            values=(
+                run_id,
+                row.source_query,
+                row.anchor_raw,
+                row.anchor_norm,
+                row.links_to_target,
+                row.dofollow_links,
+                row.refdomains,
+                row.first_seen,
+                row.last_seen,
+                json.dumps(row.lexicon_terms, separators=(",", ":")),
+                json.dumps(row.lexicon_categories, separators=(",", ":")),
+                row.raw_json,
+            ),
+            conflict_columns=("run_id", "source_query", "anchor_norm"),
         )
 
 

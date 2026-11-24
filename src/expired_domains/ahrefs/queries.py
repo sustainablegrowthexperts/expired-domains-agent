@@ -1,18 +1,21 @@
-"""Query registry for the stats and history slices.
+"""Query registry for the stats, history, backlink, and anchor slices.
 
-The full §3.1 contract is added slice by slice; this module currently returns
-the five requests that belong to the first two vertical slices.
+The full §3.1 contract is added slice by slice; this module returns the
+requests that belong to the implemented vertical slices.
 """
 
 from __future__ import annotations
 
 from datetime import date
 
+from expired_domains.ahrefs.lexicon import build_where, load_lexicon
 from expired_domains.models import QuerySpec
 
 HISTORY_MONTHS = 48
 
 BACKLINK_SELECT = "url_from,url_to,anchor,first_seen_link,is_dofollow,domain_rating_source"
+LEXICON_ANCHOR_SELECT = "anchor,links_to_target,dofollow_links,refdomains,first_seen,last_seen"
+TOP_ANCHOR_SELECT = "anchor,links_to_target,dofollow_links,first_seen"
 
 
 def history_date_from(run_date: date) -> date:
@@ -86,6 +89,30 @@ def build_run_queries(domain: str, run_date: date) -> list[QuerySpec]:
                 "limit": "30",
                 "order_by": "first_seen_link:desc",
                 "select": BACKLINK_SELECT,
+            },
+        ),
+        QuerySpec(
+            query_id="lexicon_anchors",
+            endpoint="/site-explorer/anchors",
+            params={
+                "target": domain,
+                "mode": "domain",
+                "history": "all_time",
+                "limit": "250",
+                "select": LEXICON_ANCHOR_SELECT,
+                "where": build_where(load_lexicon()),
+            },
+        ),
+        QuerySpec(
+            query_id="top_anchors",
+            endpoint="/site-explorer/anchors",
+            params={
+                "target": domain,
+                "mode": "domain",
+                "history": "live",
+                "limit": "50",
+                "order_by": "links_to_target:desc",
+                "select": TOP_ANCHOR_SELECT,
             },
         ),
         QuerySpec(

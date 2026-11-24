@@ -13,7 +13,15 @@ from urllib.parse import urlsplit, urlunsplit
 
 import tldextract
 
-from expired_domains.models import BacklinkRow, Coverage, HistoryRow, StatsRow, Units
+from expired_domains.ahrefs.lexicon import Lexicon, classify
+from expired_domains.models import (
+    AnchorRow,
+    BacklinkRow,
+    Coverage,
+    HistoryRow,
+    StatsRow,
+    Units,
+)
 
 STATS_SNAPSHOTS = ("live", "all_time")
 COVERAGE_HISTORY_MONTHS = 48
@@ -160,6 +168,36 @@ def merge_backlink_rows(rows: Sequence[BacklinkRow]) -> list[BacklinkRow]:
     return list(merged.values())
 
 
+def parse_anchors(
+    payload: dict[str, Any],
+    source_query: str,
+    lexicon: Lexicon,
+) -> list[AnchorRow]:
+    """Map ``anchors[]`` to rows, classifying locally and never dropping any."""
+    top_anchors = source_query == "top_anchors"
+    rows: list[AnchorRow] = []
+    for raw in payload.get("anchors") or []:
+        anchor_raw = raw.get("anchor")
+        anchor_norm = normalize_anchor(anchor_raw)
+        terms, categories = classify(anchor_norm, lexicon)
+        rows.append(
+            AnchorRow(
+                source_query=source_query,
+                anchor_raw=anchor_raw,
+                anchor_norm=anchor_norm,
+                links_to_target=raw.get("links_to_target"),
+                dofollow_links=raw.get("dofollow_links"),
+                refdomains=None if top_anchors else raw.get("refdomains"),
+                first_seen=raw.get("first_seen"),
+                last_seen=None if top_anchors else raw.get("last_seen"),
+                lexicon_terms=terms,
+                lexicon_categories=categories,
+                raw_json=json.dumps(raw, sort_keys=True, separators=(",", ":")),
+            )
+        )
+    return rows
+
+
 def extract_units(headers: Mapping[str, str]) -> Units:
     """Read actual and billed API units, treating missing/invalid values as zero."""
     return Units(
@@ -172,11 +210,9 @@ def compute_coverage(
     stats_rows: Sequence[StatsRow],
     top_dr_rows: Sequence[BacklinkRow] = (),
     latest_rows: Sequence[BacklinkRow] = (),
-    anchor_rows: Sequence[Any] = (),
+    anchor_rows: Sequence[AnchorRow] = (),
 ) -> Coverage:
     """Return the §3.8 coverage object for this slice."""
-    del anchor_rows  # Populated by the anchor slice.
-
     stats: dict[str, int | None] = {
         "live": None,
         "all_time": None,
@@ -192,12 +228,16 @@ def compute_coverage(
             stats["all_time_refdomains"] = row.refdomains
 
     unique = len({row.link_hash for row in (*top_dr_rows, *latest_rows)})
+    top_anchors = sum(1 for row in anchor_rows if row.source_query == "top_anchors")
+    lexicon_anchors = sum(
+        1 for row in anchor_rows if row.source_query == "lexicon_anchors"
+    )
     return Coverage(
         mode="top_n",
         stats=stats,
         rows={"top_dr": len(top_dr_rows), "latest": len(latest_rows), "unique": unique},
-        top_anchors=0,
-        lexicon_complete=True,
+        top_anchors=top_anchors,
+        lexicon_complete=lexicon_anchors < 250,
         history_months=COVERAGE_HISTORY_MONTHS,
         drop_date_source="unknown",
         prefilter=None,

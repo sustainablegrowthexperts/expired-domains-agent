@@ -1,5 +1,5 @@
--- Vertical slices one to three: runs, request audit trail, stats snapshots,
--- monthly history series, and deduplicated backlinks. A later slice adds anchors.
+-- Implemented vertical slices: runs, request audit trail, stats snapshots,
+-- monthly history series, deduplicated backlinks, and classified anchors.
 
 CREATE TABLE IF NOT EXISTS runs (
     run_id            TEXT PRIMARY KEY,
@@ -65,5 +65,22 @@ CREATE TABLE IF NOT EXISTS backlinks (
     era               TEXT,
     raw_json          TEXT NOT NULL,
     PRIMARY KEY (run_id, link_hash),
+    FOREIGN KEY (run_id) REFERENCES runs (run_id)
+);
+
+CREATE TABLE IF NOT EXISTS anchors (
+    run_id             TEXT NOT NULL,
+    source_query       TEXT NOT NULL,
+    anchor_raw         TEXT,
+    anchor_norm        TEXT,
+    links_to_target    INTEGER,
+    dofollow_links     INTEGER,
+    refdomains         INTEGER,
+    first_seen         TEXT,
+    last_seen          TEXT,
+    lexicon_terms      TEXT NOT NULL,
+    lexicon_categories TEXT NOT NULL,
+    raw_json           TEXT NOT NULL,
+    PRIMARY KEY (run_id, source_query, anchor_norm),
     FOREIGN KEY (run_id) REFERENCES runs (run_id)
 );
