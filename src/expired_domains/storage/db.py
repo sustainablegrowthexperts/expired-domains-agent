@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+
+from expired_domains.models import HistoryRow
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
@@ -39,6 +41,8 @@ _REQUEST_COLUMNS = (
 )
 
 _STATS_COLUMNS = ("run_id", "snapshot", "links", "refdomains")
+
+_HISTORY_COLUMNS = ("run_id", "series", "date", "value")
 
 
 def connect(db_path: Path) -> sqlite3.Connection:
@@ -166,6 +170,22 @@ def upsert_stats(
         values=(run_id, snapshot, links, refdomains),
         conflict_columns=("run_id", "snapshot"),
     )
+
+
+def upsert_history_rows(
+    conn: sqlite3.Connection,
+    run_id: str,
+    rows: Iterable[HistoryRow],
+) -> None:
+    """Insert or replace monthly history rows, accepting an empty list."""
+    for row in rows:
+        _upsert(
+            conn,
+            table="history",
+            columns=_HISTORY_COLUMNS,
+            values=(run_id, row.series, row.date, row.value),
+            conflict_columns=("run_id", "series", "date"),
+        )
 
 
 def _upsert(

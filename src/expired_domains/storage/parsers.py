@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from expired_domains.models import Coverage, StatsRow, Units
+from expired_domains.models import Coverage, HistoryRow, StatsRow, Units
 
 STATS_SNAPSHOTS = ("live", "all_time")
 COVERAGE_HISTORY_MONTHS = 48
@@ -25,6 +25,32 @@ def parse_stats(payload: dict[str, Any]) -> list[StatsRow]:
             links=metrics.get("all_time"),
             refdomains=metrics.get("all_time_refdomains"),
         ),
+    ]
+
+
+def parse_refdomains_history(payload: dict[str, Any]) -> list[HistoryRow]:
+    """Map every ``refdomains`` entry to a ``refdomains`` history row."""
+    entries = payload.get("refdomains") or []
+    return [
+        HistoryRow(
+            series="refdomains",
+            date=_normalise_date(entry["date"]),
+            value=entry.get("refdomains"),
+        )
+        for entry in entries
+    ]
+
+
+def parse_metrics_history(payload: dict[str, Any]) -> list[HistoryRow]:
+    """Map every ``metrics`` entry to an ``org_traffic`` history row."""
+    entries = payload.get("metrics") or []
+    return [
+        HistoryRow(
+            series="org_traffic",
+            date=_normalise_date(entry["date"]),
+            value=entry.get("org_traffic"),
+        )
+        for entry in entries
     ]
 
 
@@ -68,6 +94,11 @@ def compute_coverage(
         drop_date_source="unknown",
         prefilter=None,
     )
+
+
+def _normalise_date(value: str) -> str:
+    """Return the ``YYYY-MM-DD`` prefix of an ISO-8601 date string."""
+    return value[:10]
 
 
 def _integer_header(headers: Mapping[str, str], name: str) -> int:

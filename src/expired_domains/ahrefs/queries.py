@@ -1,7 +1,7 @@
-"""Query registry for the stats slice.
+"""Query registry for the stats and history slices.
 
 The full §3.1 contract is added slice by slice; this module currently returns
-the three requests that belong to the first vertical slice.
+the five requests that belong to the first two vertical slices.
 """
 
 from __future__ import annotations
@@ -10,9 +10,20 @@ from datetime import date
 
 from expired_domains.models import QuerySpec
 
+HISTORY_MONTHS = 48
+
+
+def history_date_from(run_date: date) -> date:
+    """Return the first day of the month 48 months before ``run_date``."""
+    months = run_date.year * 12 + (run_date.month - 1) - HISTORY_MONTHS
+    year, month_index = divmod(months, 12)
+    return date(year, month_index + 1, 1)
+
 
 def build_run_queries(domain: str, run_date: date) -> list[QuerySpec]:
     """Return the ordered query specs for one run."""
+    date_from = history_date_from(run_date).isoformat()
+
     return [
         QuerySpec(
             query_id="limits_before",
@@ -26,6 +37,27 @@ def build_run_queries(domain: str, run_date: date) -> list[QuerySpec]:
                 "target": domain,
                 "mode": "domain",
                 "date": run_date.isoformat(),
+            },
+        ),
+        QuerySpec(
+            query_id="refdomains_history",
+            endpoint="/site-explorer/refdomains-history",
+            params={
+                "target": domain,
+                "mode": "domain",
+                "date_from": date_from,
+                "history_grouping": "monthly",
+            },
+        ),
+        QuerySpec(
+            query_id="metrics_history",
+            endpoint="/site-explorer/metrics-history",
+            params={
+                "target": domain,
+                "mode": "domain",
+                "date_from": date_from,
+                "history_grouping": "monthly",
+                "select": "date,org_traffic",
             },
         ),
         QuerySpec(

@@ -10,7 +10,9 @@ from pathlib import Path
 from expired_domains import __version__
 from expired_domains.config import ConfigError, Settings, load_settings
 from expired_domains.enrich import run_enrich
-from expired_domains.models import Coverage, RunSummary
+from expired_domains.models import Coverage, RequestRecord, RunSummary
+
+HISTORY_QUERY_IDS = ("refdomains_history", "metrics_history")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -75,9 +77,27 @@ def _print_summary(summary: RunSummary) -> None:
     print(f"run_id: {summary.run_id}")
     print(f"raw_dir: {summary.raw_dir}")
     print(f"coverage: {_coverage_line(summary.coverage)}")
+    print(f"history: {_history_line(summary.requests)}")
     print(f"units: actual={summary.units.actual} billed={summary.units.billed}")
     if summary.error:
         print(f"error: {summary.error}", file=sys.stderr)
+
+
+def _history_line(requests: Sequence[RequestRecord]) -> str:
+    """Render the reported history row counts, showing zero rows explicitly."""
+    counts = dict.fromkeys(HISTORY_QUERY_IDS, 0)
+    for record in requests:
+        if record.query_id in counts:
+            counts[record.query_id] = _row_count(record.rows)
+    return " ".join(f"{query_id}={count}" for query_id, count in counts.items())
+
+
+def _row_count(value: str | None) -> int:
+    """Convert an ``x-api-rows`` value to an integer, treating bad values as zero."""
+    try:
+        return int(value) if value is not None else 0
+    except (TypeError, ValueError):
+        return 0
 
 
 def _coverage_line(coverage: Coverage) -> str:

@@ -16,10 +16,16 @@ from expired_domains.storage.db import (
     init_db,
     insert_run,
     transaction,
+    upsert_history_rows,
     upsert_request,
     upsert_stats,
 )
-from expired_domains.storage.parsers import compute_coverage, parse_stats
+from expired_domains.storage.parsers import (
+    compute_coverage,
+    parse_metrics_history,
+    parse_refdomains_history,
+    parse_stats,
+)
 from expired_domains.storage.raw import create_run_dir, make_run_id
 
 CONFIG: dict[str, Any] = {
@@ -89,15 +95,28 @@ def run_enrich(
                         error=record.error or record.parse_error,
                     )
 
-                    if spec.query_id == "stats" and _stats_available(record):
-                        stats_rows = parse_stats(record.payload or {})
-                        for row in stats_rows:
-                            upsert_stats(
+                    if _request_available(record):
+                        if spec.query_id == "stats":
+                            stats_rows = parse_stats(record.payload or {})
+                            for row in stats_rows:
+                                upsert_stats(
+                                    conn,
+                                    run_id=run_id,
+                                    snapshot=row.snapshot,
+                                    links=row.links,
+                                    refdomains=row.refdomains,
+                                )
+                        elif spec.query_id == "refdomains_history":
+                            upsert_history_rows(
                                 conn,
-                                run_id=run_id,
-                                snapshot=row.snapshot,
-                                links=row.links,
-                                refdomains=row.refdomains,
+                                run_id,
+                                parse_refdomains_history(record.payload or {}),
+                            )
+                        elif spec.query_id == "metrics_history":
+                            upsert_history_rows(
+                                conn,
+                                run_id,
+                                parse_metrics_history(record.payload or {}),
                             )
 
                     message = record.error or record.parse_error
@@ -162,8 +181,8 @@ def _write_run(
     )
 
 
-def _stats_available(record: RequestRecord) -> bool:
-    """Return True only when the stats request produced parseable JSON."""
+def _request_available(record: RequestRecord) -> bool:
+    """Return True only when a request produced parseable JSON."""
     return (
         record.status is not None
         and 200 <= record.status < 300

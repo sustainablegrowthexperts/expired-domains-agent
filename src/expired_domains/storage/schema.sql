@@ -1,5 +1,5 @@
--- First vertical slice: runs, request audit trail, and stats snapshots.
--- Later slices add history, backlinks, and anchors tables.
+-- First two vertical slices: runs, request audit trail, stats snapshots, and
+-- monthly history series. Later slices add backlinks and anchors tables.
 
 CREATE TABLE IF NOT EXISTS runs (
     run_id            TEXT PRIMARY KEY,
@@ -37,5 +37,14 @@ CREATE TABLE IF NOT EXISTS stats (
     links      INTEGER,
     refdomains INTEGER,
     PRIMARY KEY (run_id, snapshot),
+    FOREIGN KEY (run_id) REFERENCES runs (run_id)
+);
+
+CREATE TABLE IF NOT EXISTS history (
+    run_id  TEXT NOT NULL,
+    series  TEXT NOT NULL,
+    date    TEXT NOT NULL,
+    value   INTEGER,
+    PRIMARY KEY (run_id, series, date),
     FOREIGN KEY (run_id) REFERENCES runs (run_id)
 );

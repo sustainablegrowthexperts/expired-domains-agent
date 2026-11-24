@@ -35,6 +35,15 @@ class StatsRow:
 
 
 @dataclass(frozen=True)
+class HistoryRow:
+    """One monthly ``history`` series row."""
+
+    series: str
+    date: str
+    value: int | None
+
+
+@dataclass(frozen=True)
 class RequestRecord:
     """Normalised result of one provider request."""
 

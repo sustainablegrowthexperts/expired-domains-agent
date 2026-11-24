@@ -1,7 +1,7 @@
 ---
 id: task-002
 title: "[Slice] Retrieve referring-domain and organic-traffic history series"
-status: pending
+status: completed
 depends_on: ["task-001"]
 target_files:
   - "src/expired_domains/ahrefs/queries.py"
