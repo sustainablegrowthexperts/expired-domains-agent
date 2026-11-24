@@ -1,7 +1,7 @@
 ---
 id: task-006
 title: "[Slice] Prove the corpus via replay and one live verification run"
-status: pending
+status: completed
 depends_on: ["task-005"]
 target_files:
   - "pyproject.toml"
@@ -110,6 +110,13 @@ target_files:
     uv run pytest tests/test_live.py -m live -v
   ```
 - **Expected result:** The test passes, a new run directory with nine raw pairs and `manifest.json` exists under the temporary raw root, index rows exist for every table, coverage is complete, and actual units are recorded. If the domain was previously fetched, note the cache effect instead of forcing a new domain.
+
+### Completion Notes
+
+- **RED:** `uv run pytest tests/test_replay_parity.py -v` failed collection with `ModuleNotFoundError: No module named 'replay'`, confirming the helper did not exist.
+- **GREEN:** `uv run pytest tests/test_replay_parity.py -v` → 10 passed (7 run parities plus unknown-query, idempotency, and run-directory discovery).
+- **Suite:** `uv run pytest` → 109 passed, 1 deselected (live); `uv run ruff check src tests` → no findings.
+- **Manual live check (2026-11-24):** ran against `smoke-fire.com` with a `tmp_path` raw root and DB. All nine requests succeeded, nine raw payload/header pairs plus `manifest.json` were written, and stats/history/backlinks/anchors rows were present. Observed units: **actual 2844 / billed 2844** (no `x-api-cache: hit` entries, so no cache reduction). Run ID: `smoke-fire.com:20261124T100706Z:ahrefs`.
 
 ### Definition of Done
 

@@ -19,9 +19,18 @@ ENV_VARS = (
 
 
 @pytest.fixture(autouse=True)
-def clean_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep the developer machine's environment and ``.env`` out of tests."""
+def clean_environment(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep the developer machine's environment and ``.env`` out of tests.
+
+    Live checks are the one exception: they need the real ``AHREFS_KEY`` from
+    the process environment so the explicit ``-m live`` run can happen.
+    """
+    is_live = request.node.get_closest_marker("live") is not None
     for name in ENV_VARS:
+        if is_live and name == "AHREFS_KEY":
+            continue
         monkeypatch.delenv(name, raising=False)
 
 
@@ -52,6 +61,25 @@ def reference_run_dir(name: str) -> Path:
         return matches[0]
 
     pytest.skip("Ahrefs fixture corpus not available")
+
+
+def run_dirs() -> list[Path]:
+    """Return every reference run directory containing ``manifest.json``.
+
+    The corpus also contains a non-run ``123eft.com/lexicon_probes`` directory;
+    filtering on the manifest keeps that out of replay parametrisation.
+    """
+    if not FIXTURES_RUNS.is_dir():
+        pytest.skip("Ahrefs fixture corpus not available")
+
+    directories = sorted(
+        path.parent
+        for path in FIXTURES_RUNS.glob("*/*/manifest.json")
+        if path.is_file()
+    )
+    if not directories:
+        pytest.skip("Ahrefs fixture corpus has no manifest-bearing run directories")
+    return directories
 
 
 def make_settings(tmp_path: Path, *, ahrefs_key: str | None = "test-key") -> Settings:

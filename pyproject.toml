@@ -25,7 +25,8 @@ packages = ["src/expired_domains"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = '-q -m "not live"'
+markers = ["live: requires AHREFS_KEY and a live Ahrefs API call"]
 
 [tool.ruff]
 line-length = 100
