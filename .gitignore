@@ -1,0 +1,23 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# OpenCode dependencies
+.opencode/node_modules/
+
+# Generated artifacts / run data
+output/
+runs/
+
+# OS / editor junk
+.DS_Store
+*:Zone.Identifier
+*.log
