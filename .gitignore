@@ -16,6 +16,10 @@ __pycache__/
 # Generated artifacts / run data
 output/
 runs/
+data/
+reference/output/
+tests/fixtures/runs/
+*.sqlite3*
 
 # OS / editor junk
 .DS_Store

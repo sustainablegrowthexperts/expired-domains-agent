@@ -1,0 +1,38 @@
+[project]
+name = "expired-domains"
+version = "0.1.0"
+description = "Evaluate expired domains using Ahrefs data and a local SQLite index."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+    "tldextract>=5.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/expired_domains"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+# Read-only historical scripts and standalone task tooling; never reformat or lint them.
+extend-exclude = ["reference/legacy", "task_runner.py"]
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP"]
