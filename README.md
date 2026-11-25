@@ -56,8 +56,16 @@ gitignored; only `.env.example` is committed. Configuration values are never
 printed or logged.
 
 > **Rotate exposed keys.** API keys have previously been shared in plaintext.
-> Rotate `AHREFS_KEY`, `DATAFORSEO_API_PASSWORD`, and `OPENROUTER_API_KEY` at
-> their providers and update your local `.env` before using the tooling.
+> Rotate `AHREFS_KEY` and `OPENROUTER_API_KEY` at their providers and update
+> your local `.env` before using the tooling.
+
+> **Agent note (AI assistants).** This repository ships `.env.example` with
+> empty placeholders. Immediately after cloning, an agent must not run
+> retrieval commands until it has confirmed a local `.env` exists with real
+> values. If `.env` is missing, copy `.env.example` to `.env` and ask the
+> operator to fill in the required values (`AHREFS_KEY` for any Ahrefs call);
+> never invent, guess, or commit secrets. `.env` is gitignored — do not add it
+> to version control.
 
 ## Usage
 
