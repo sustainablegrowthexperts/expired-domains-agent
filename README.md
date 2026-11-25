@@ -60,21 +60,71 @@ printed or logged.
 > your local `.env` before using the tooling.
 
 > **Agent note (AI assistants).** This repository ships `.env.example` with
-> empty placeholders. Immediately after cloning, an agent must not run
-> retrieval commands until it has confirmed a local `.env` exists with real
-> values. If `.env` is missing, copy `.env.example` to `.env` and ask the
-> operator to fill in the required values (`AHREFS_KEY` for any Ahrefs call);
-> never invent, guess, or commit secrets. `.env` is gitignored — do not add it
-> to version control.
+> empty placeholders, and `.env` is gitignored. After cloning, do not run any
+> retrieval command until `.env` exists with real values. **Ask the user for
+> the required keys** (`AHREFS_KEY` is needed for any Ahrefs call) and
+> **preferably create or update `.env` for them** — copy `.env.example` if the
+> file is missing. Never invent or guess a key, never print or log secret
+> values, and never commit `.env` or real values to version control. If the
+> user prefers to paste the keys in themselves, create the file, give them the
+> path, and wait.
 
 ## Usage
 
 ```bash
 uv run python -m expired_domains --help
 uv run python -m expired_domains --version
+uv run python -m expired_domains enrich example.com
+uv run python -m expired_domains enrich example.com --force
+uv run python -m expired_domains enrich example.com --db /tmp/index.sqlite3
 ```
 
-Only `--help` and `--version` exist in the current scaffold.
+`enrich` makes the nine live Ahrefs requests for one domain and prints a
+per-request summary followed by `run_id`, `raw_dir`, coverage, and unit totals.
+It spends Ahrefs units and has no offline or dry-run mode.
+
+- `--force` — fetch a new run even when a run already exists for today.
+- `--db PATH` — write the SQLite index somewhere other than the configured path.
+
+## Where results are written
+
+A run writes to two local, gitignored locations. Both default under
+`<project_root>/data/`:
+
+```text
+data/
+├── index.sqlite3                       # SQLite index (queryable rows)
+└── raw/
+    └── ahrefs/
+        └── gardenofdelights.com/
+            └── gardenofdelights.com_20261125T103541Z_ahrefs/
+                ├── manifest.json       # run metadata + per-request manifest
+                ├── stats.p0.json       # untouched provider payloads
+                ├── stats.p0.headers.json
+                └── ...                 # one .json + .headers.json per request
+```
+
+**Raw payloads** — `<raw_root>/<domain>/<run_id>/`, one directory per run.
+Every request's response is stored verbatim alongside its headers; nothing is
+compressed or rewritten, so runs can be re-parsed later without spending units.
+Runs are never overwritten — each one gets its own timestamped directory.
+
+**SQLite index** — `<data_root>/index.sqlite3`. Every table is keyed by
+`run_id` so multiple runs and domains can coexist:
+
+| Table | Contents |
+|---|---|
+| `runs` | One row per run: domain, mode, timestamps, drop date/source, config, coverage, units. |
+| `requests` | One audit row per HTTP call: status, params, row count, units, raw path. |
+| `stats` | Live and all-time link/referring-domain snapshots. |
+| `history` | Monthly referring-domain and organic-traffic series. |
+| `backlinks` | Deduplicated backlink rows (URLs, anchor, rel, rating, raw JSON). |
+| `anchors` | Top and lexicon-matched anchors with local classifications. |
+
+Each successful run prints its `run_id` and absolute `raw_dir`, so results can
+always be located without guessing. Override the defaults with
+`EXPIRED_DOMAINS_DATA_ROOT`, `EXPIRED_DOMAINS_RAW_ROOT`, or
+`EXPIRED_DOMAINS_DB_PATH`; `--db` overrides the index path for one run.
 
 ## Reference material
 
