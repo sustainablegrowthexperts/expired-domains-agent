@@ -1,0 +1,106 @@
+{
+  "version": "v1",
+  "niches": {
+    "medical": {
+      "label": "Medical",
+      "description": "Healthcare, medicine, medical services, wellness and health products",
+      "terms": [
+        "medical", "medicine", "medic", "health", "healthcare", "health care",
+        "clinic", "clinical", "hospital", "doctor", "physician", "dentist",
+        "dental", "dentistry", "orthodont", "surgery", "surgical", "surgeon",
+        "pharmacy", "pharma", "pharmaceutical", "prescription", "patient",
+        "nursing", "nurse", "therapy", "therapist", "treatment", "rehab",
+        "recovery", "wellness", "vitamin", "supplement", "nutrition", "diet",
+        "fitness", "yoga", "mental", "psychiatry", "psychology", "counseling",
+        "dermatology", "cardiology", "oncology", "pediatrics", "gynecology",
+        "obstetrics", "orthopedics", "neurology", "radiology", "pathology",
+        "anesthesia", "emergency", "urgent care", "telehealth", "laboratory",
+        "diagnostic", "imaging", "xray", "mri", "blood", "donor", "homecare",
+        "hospice", "veterinary", "veterinarian", "vet", "petcare", "meds",
+        "medical supplies", "medical equipment", "health insurance", "medicare",
+        "medicaid", "cbd", "chiropractor", "chiropractic", "acupuncture",
+        "physiotherapy", "physio", "optometry", "optician", "optical",
+        "hearing", "audiology", "podiatry", "urology", "nephrology",
+        "endocrinology", "gastroenterology", "immunology", "allergy", "asthma",
+        "diabetes", "cancer", "hiv", "std", "hrt", "hormone", "fertility",
+        "ivf", "pregnancy", "prenatal", "midwife", "doula", "plastic surgery",
+        "aesthetic", "skincare", "skin care", "acne", "hair loss",
+        "weight loss", "bariatric", "sleep apnea", "infusion", "dialysis",
+        "paramedic", "ambulance", "first aid", "medical billing",
+        "medical coding", "ehr", "emr", "healthcare it", "hospitalist",
+        "physician assistant", "nurse practitioner"
+      ]
+    },
+    "travel": {
+      "label": "Travel",
+      "description": "Travel, tourism, trips, hotels, flights and destinations",
+      "terms": [
+        "travel", "trip", "tour", "tourism", "tourist", "vacation", "holiday",
+        "getaway", "resort", "hotel", "motel", "inn", "hostel", "lodge",
+        "accommodation", "booking", "cruise", "flight", "airline", "airport",
+        "airfare", "ticket", "itinerary", "destination", "explore", "adventure",
+        "safari", "beach", "island", "mountain", "ski", "snowboard", "camping",
+        "campsite", "caravan", "roadtrip", "road trip", "backpack",
+        "backpacking", "backpacker", "trek", "trekking", "hike", "hiking",
+        "excursion", "sightseeing", "city break", "weekend", "escape",
+        "wanderlust", "passport", "visa", "luggage", "suitcase", "travel agency",
+        "travel agent", "tour operator", "car rental", "rental car", "bus",
+        "train", "rail", "ferry", "yacht", "sailing", "diving", "snorkel",
+        "surf", "surfboard", "fishing", "theme park", "amusement", "national park",
+        "ecotourism", "agritourism", "homestay", "bnb", "airbnb", "vrbo",
+        "cruise ship", "river cruise", "expedition", "nomad", "digital nomad",
+        "expat", "travel insurance", "traveller", "traveler", "vacay",
+        "staycation", "timeshare"
+      ]
+    },
+    "legal": {
+      "label": "Legal / Law",
+      "description": "Law, legal services, attorneys, courts and legal issues",
+      "terms": [
+        "legal", "law", "lawyer", "attorney", "lawfirm", "law firm", "law office",
+        "solicitor", "barrister", "advocate", "counsel", "litigation",
+        "litigator", "lawsuit", "sue", "court", "tribunal", "judge", "justice",
+        "judicial", "paralegal", "notary", "affidavit", "contract", "agreement",
+        "legal advice", "legal help", "legal services", "legal aid", "injury",
+        "personal injury", "accident", "compensation", "claim", "claimant",
+        "malpractice", "negligence", "liability", "insurance claim",
+        "workers comp", "work injury", "wrongful death", "divorce",
+        "family law", "custody", "child support", "adoption", "estate",
+        "probate", "will", "trust", "inheritance", "elder law", "bankruptcy",
+        "insolvency", "debt", "creditor", "foreclosure", "eviction", "landlord",
+        "tenant", "real estate law", "property law", "criminal", "defense",
+        "dui", "dwi", "felony", "misdemeanor", "traffic ticket", "expungement",
+        "immigration", "green card", "asylum", "deportation", "citizenship",
+        "naturalization", "business law", "corporate law", "llc",
+        "incorporation", "trademark", "copyright", "patent",
+        "intellectual property", "ip law", "employment law", "labor law",
+        "discrimination", "harassment", "wrongful termination", "wage",
+        "overtime", "tax law", "irs", "audit", "securities", "compliance",
+        "regulatory", "environmental law", "construction law",
+        "medical malpractice", "nursing home", "product liability",
+        "class action", "settlement", "arbitration", "mediation", "appeal",
+        "appellate", "supreme court", "district court", "prosecutor",
+        "public defender"
+      ]
+    },
+    "hospitality": {
+      "label": "Hospitality",
+      "description": "Hotels, restaurants, food service, events and hospitality venues",
+      "terms": [
+        "hospitality", "hotel", "motel", "resort", "restaurant", "cafe",
+        "coffee shop", "bar", "pub", "brewery", "winery", "bistro", "catering",
+        "banquet", "event", "events", "wedding", "wedding venue", "conference",
+        "convention", "meeting", "spa", "guest house", "guesthouse",
+        "bed and breakfast", "inn", "lodge", "hostel", "vacation rental",
+        "serviced apartment", "leisure", "entertainment", "nightclub",
+        "food service", "foodservice", "chef", "culinary", "kitchen", "menu",
+        "dining", "reservation", "concierge", "housekeeping", "front desk",
+        "hospitality management", "hospitality design", "hospitality show",
+        "restaurant supply", "food truck", "coffee", "tea", "bakery",
+        "pizzeria", "buffet", "steakhouse", "seafood", "vegan restaurant",
+        "hotel management", "hotel supplies", "hotel furniture",
+        "hotel design"
+      ]
+    }
+  }
+}

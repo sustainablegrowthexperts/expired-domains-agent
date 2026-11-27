@@ -79,9 +79,7 @@ def run_enrich(
             return RunSummary(
                 run_id=existing_run_id,
                 domain=domain,
-                raw_dir=Path(resolved.raw_root)
-                / domain
-                / run_dir_name(existing_run_id),
+                raw_dir=Path(resolved.raw_root) / domain / run_dir_name(existing_run_id),
                 requests=[],
                 coverage=compute_coverage([]),
                 units=Units(actual=0, billed=0),
@@ -90,9 +88,7 @@ def run_enrich(
                 message=message,
             )
 
-        run_id, run_time = _choose_run_id(
-            conn, Path(resolved.raw_root), domain, now_utc
-        )
+        run_id, run_time = _choose_run_id(conn, Path(resolved.raw_root), domain, now_utc)
         raw_dir = create_run_dir(resolved.raw_root, domain, run_id)
 
         owns_client = client is None
@@ -177,9 +173,7 @@ def run_enrich(
 
                 upsert_backlinks(conn, run_id, merge_backlink_rows(backlink_rows))
                 upsert_anchors(conn, run_id, anchor_rows)
-                coverage = compute_coverage(
-                    stats_rows, top_dr_rows, latest_rows, anchor_rows
-                )
+                coverage = compute_coverage(stats_rows, top_dr_rows, latest_rows, anchor_rows)
                 units = _totals(requests)
                 error = failures or None
                 _write_run(
@@ -233,9 +227,7 @@ def _choose_run_id(
     candidate = now_utc
     for _ in range(86_400):
         run_id = make_run_id(domain, candidate)
-        in_index = conn.execute(
-            "SELECT 1 FROM runs WHERE run_id = ?", (run_id,)
-        ).fetchone()
+        in_index = conn.execute("SELECT 1 FROM runs WHERE run_id = ?", (run_id,)).fetchone()
         run_dir = Path(raw_root) / domain / run_dir_name(run_id)
         if in_index is None and not run_dir.exists():
             return run_id, candidate

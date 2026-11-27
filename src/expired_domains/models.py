@@ -26,6 +26,106 @@ class QuerySpec:
 
 
 @dataclass(frozen=True)
+class DomainObservation:
+    """One domain seen in one source on one collection date.
+
+    ``metrics`` has the same keys for every source (missing values are
+    ``None``), so consumers can compare sources without branching. ``raw``
+    keeps every remaining column from the export verbatim for provenance.
+    """
+
+    domain: str
+    source: str
+    collected_date: str
+    metrics: dict[str, Any]
+    raw: dict[str, str]
+
+
+@dataclass(frozen=True)
+class PrefilterCandidate:
+    """One classified domain awaiting the local prefilter."""
+
+    domain: str
+    niche: str | None
+    metrics: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class PrefilterResult:
+    """The stored verdict of the deterministic local prefilter."""
+
+    passed: bool
+    reason: str
+    details: dict[str, Any]
+    config_version: str
+    checked_at: str
+
+
+@dataclass(frozen=True)
+class KeywordVerdict:
+    """One LLM decision about whether a candidate keyword is reusable."""
+
+    reusable: bool
+    reason: str
+    confidence: float
+    flags: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class DomainRatingVerdict:
+    """One free Ahrefs Domain Rating result for a candidate domain."""
+
+    rating: float | None
+    license: str | None = None
+
+
+@dataclass(frozen=True)
+class WaybackCheck:
+    """One weighted check in the Wayback Machine stage."""
+
+    key: str
+    label: str
+    weight: int
+    critical: bool
+    result: str
+    reason: str
+    evaluated_by: str = "lexicon"
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the JSON-friendly shape stored in the verdict details."""
+        return {
+            "check": self.key,
+            "label": self.label,
+            "weight": self.weight,
+            "critical": self.critical,
+            "result": self.result,
+            "reason": self.reason,
+            "evaluated_by": self.evaluated_by,
+        }
+
+
+@dataclass(frozen=True)
+class WaybackVerdict:
+    """The stored pass/fail verdict of the Wayback Machine stage."""
+
+    passed: bool
+    score: int
+    reason: str
+    source: str
+    details: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class LiveCheckVerdict:
+    """The stored pass/fail verdict of the Live check stage."""
+
+    passed: bool
+    class_: str
+    reason: str
+    details: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class StatsRow:
     """One ``stats`` snapshot row."""
 

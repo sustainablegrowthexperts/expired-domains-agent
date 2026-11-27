@@ -131,9 +131,7 @@ EXPECTED_RUNS: dict[str, dict[str, Any]] = {
 
 
 @pytest.mark.parametrize("run_name", sorted(EXPECTED_RUNS))
-def test_replay_reproduces_reference_counts_units_and_flags(
-    run_name: str, tmp_db: Path
-) -> None:
+def test_replay_reproduces_reference_counts_units_and_flags(run_name: str, tmp_db: Path) -> None:
     expected = EXPECTED_RUNS[run_name]
     run_dir = conftest.reference_run_dir(run_name)
 
@@ -165,9 +163,7 @@ def test_replay_reproduces_reference_counts_units_and_flags(
 
     conn = connect(tmp_db)
     try:
-        run = conn.execute(
-            "SELECT * FROM runs WHERE run_id = ?", (result.run_id,)
-        ).fetchone()
+        run = conn.execute("SELECT * FROM runs WHERE run_id = ?", (result.run_id,)).fetchone()
         assert run["domain"] == run_dir.parent.name
         assert run["mode"] == "domain"
         assert run["tier"] == "standard"

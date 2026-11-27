@@ -43,12 +43,7 @@ def _load_lexicon(path: str) -> Lexicon:
 
 def build_where(lexicon: Lexicon) -> str:
     """Return the compact JSON ``or`` clause over every lexicon term."""
-    clause = {
-        "or": [
-            {"field": "anchor", "is": ["isubstring", term]}
-            for term in lexicon.terms
-        ]
-    }
+    clause = {"or": [{"field": "anchor", "is": ["isubstring", term]} for term in lexicon.terms]}
     return json.dumps(clause, separators=(",", ":"), ensure_ascii=False)
 
 

@@ -133,15 +133,12 @@ def test_extract_units_reads_actual_and_billed() -> None:
 
 def test_extract_units_tolerates_missing_blank_and_invalid_values() -> None:
     assert extract_units({}) == Units(actual=0, billed=0)
-    assert (
-        extract_units(
-            {
-                "x-api-units-cost-total": "",
-                "x-api-units-cost-total-actual": "not-a-number",
-            }
-        )
-        == Units(actual=0, billed=0)
-    )
+    assert extract_units(
+        {
+            "x-api-units-cost-total": "",
+            "x-api-units-cost-total-actual": "not-a-number",
+        }
+    ) == Units(actual=0, billed=0)
 
 
 def test_compute_coverage_has_the_exact_spec_shape() -> None:
@@ -199,8 +196,7 @@ def _synthetic_backlink(**overrides: Any) -> dict[str, Any]:
 
 def test_normalize_url_lowercases_scheme_and_host_and_strips_default_ports() -> None:
     assert (
-        parsers.normalize_url("HTTPS://Example.COM:443/Path?Q=1")
-        == "https://example.com/Path?Q=1"
+        parsers.normalize_url("HTTPS://Example.COM:443/Path?Q=1") == "https://example.com/Path?Q=1"
     )
     assert parsers.normalize_url("http://example.com:80/") == "http://example.com/"
 

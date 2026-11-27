@@ -106,9 +106,7 @@ def replay_run(run_dir: Path, db_path: Path) -> ReplayResult:
     run_path = Path(run_dir)
     manifest_path = run_path / "manifest.json"
     if not manifest_path.is_file():
-        raise FileNotFoundError(
-            f"replay requires manifest.json in {run_path}"
-        )
+        raise FileNotFoundError(f"replay requires manifest.json in {run_path}")
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     run_id = str(manifest["run_id"])
@@ -193,9 +191,7 @@ def _mapping_for(query_id: str, warnings: list[str]) -> _Mapping:
     if mapping is not None:
         return mapping
     if not query_id.startswith("limits_"):
-        warnings.append(
-            f"unknown query id {query_id!r}; recorded in requests only"
-        )
+        warnings.append(f"unknown query id {query_id!r}; recorded in requests only")
     return _Mapping("requests")
 
 
@@ -212,9 +208,7 @@ def _documents(run_path: Path) -> list[tuple[str, int, Path, dict[str, Any]]]:
     return documents
 
 
-def _headers_for(
-    raw_path: Path, request: dict[str, Any]
-) -> dict[str, str]:
+def _headers_for(raw_path: Path, request: dict[str, Any]) -> dict[str, str]:
     """Return the response headers, falling back to the request record's copy."""
     headers_path = raw_path.with_suffix(".headers.json")
     if headers_path.is_file():
@@ -309,8 +303,7 @@ def _recompute_coverage(
         state.anchor_rows,
     )
     lexicon_rows = conn.execute(
-        "SELECT COUNT(*) FROM anchors "
-        "WHERE run_id = ? AND source_query = 'lexicon_anchors'",
+        "SELECT COUNT(*) FROM anchors WHERE run_id = ? AND source_query = 'lexicon_anchors'",
         (run_id,),
     ).fetchone()[0]
 
@@ -328,9 +321,7 @@ def _recompute_coverage(
     )
 
 
-def _request_row_count(
-    conn: sqlite3.Connection, run_id: str, query_id: str
-) -> int:
+def _request_row_count(conn: sqlite3.Connection, run_id: str, query_id: str) -> int:
     """Return the recorded request row count, treating missing values as zero."""
     row = conn.execute(
         "SELECT row_count FROM requests WHERE run_id = ? AND query_id = ?",
@@ -342,9 +333,9 @@ def _request_row_count(
 def _row_counts(conn: sqlite3.Connection, run_id: str) -> dict[str, int]:
     """Return one row count per index table for this run."""
     return {
-        table: conn.execute(
-            f"SELECT COUNT(*) FROM {table} WHERE run_id = ?", (run_id,)
-        ).fetchone()[0]
+        table: conn.execute(f"SELECT COUNT(*) FROM {table} WHERE run_id = ?", (run_id,)).fetchone()[
+            0
+        ]
         for table in _TABLE_NAMES
     }
 

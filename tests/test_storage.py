@@ -324,6 +324,7 @@ def test_requests_are_rejected_without_a_parent_run(tmp_db: Path) -> None:
     finally:
         conn.close()
 
+
 def test_history_table_exists_with_composite_primary_key(tmp_db: Path) -> None:
     init_db(tmp_db)
 
@@ -502,12 +503,8 @@ def test_backlinks_are_rejected_without_a_parent_run(tmp_db: Path) -> None:
 
 
 def test_corrected_fixture_stores_98_unique_backlinks_from_100_rows(tmp_db: Path) -> None:
-    top_dr = parsers.parse_backlinks(
-        _fixture_payload("top_dr_backlinks"), "top_dr_backlinks"
-    )
-    latest = parsers.parse_backlinks(
-        _fixture_payload("latest_backlinks"), "latest_backlinks"
-    )
+    top_dr = parsers.parse_backlinks(_fixture_payload("top_dr_backlinks"), "top_dr_backlinks")
+    latest = parsers.parse_backlinks(_fixture_payload("latest_backlinks"), "latest_backlinks")
 
     init_db(tmp_db)
     conn = _open(tmp_db)
@@ -712,9 +709,7 @@ def test_both_anchor_source_queries_coexist_for_one_run(tmp_db: Path) -> None:
     try:
         with transaction(conn):
             _insert_sample_run(conn)
-            db.upsert_anchors(
-                conn, RUN_ID, [_anchor_row(source_query="lexicon_anchors")]
-            )
+            db.upsert_anchors(conn, RUN_ID, [_anchor_row(source_query="lexicon_anchors")])
             db.upsert_anchors(
                 conn,
                 RUN_ID,
@@ -735,9 +730,7 @@ def test_both_anchor_source_queries_coexist_for_one_run(tmp_db: Path) -> None:
             )
         }
         assert counts == {"lexicon_anchors": 1, "top_anchors": 1}
-        top = conn.execute(
-            "SELECT * FROM anchors WHERE source_query = 'top_anchors'"
-        ).fetchone()
+        top = conn.execute("SELECT * FROM anchors WHERE source_query = 'top_anchors'").fetchone()
         assert top["refdomains"] is None
         assert top["last_seen"] is None
     finally:
@@ -807,9 +800,7 @@ def test_mocked_enrich_run_persists_anchor_slices_and_lexicon_version(
         }
         assert request_counts == {"lexicon_anchors": 165, "top_anchors": 50}
 
-        config = json.loads(
-            conn.execute("SELECT config_json FROM runs").fetchone()["config_json"]
-        )
+        config = json.loads(conn.execute("SELECT config_json FROM runs").fetchone()["config_json"])
         assert config["lexicon_version"] == "v1"
         assert config["top_anchor_rows"] == 50
 

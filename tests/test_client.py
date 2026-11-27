@@ -91,9 +91,7 @@ def test_successful_response_writes_raw_pair_and_captures_units(
     assert saved_headers["x-api-units-cost-total"] == "50"
 
 
-def test_cache_hit_charges_zero_actual_and_fifty_billed(
-    tmp_path: Path, settings_factory
-) -> None:
+def test_cache_hit_charges_zero_actual_and_fifty_billed(tmp_path: Path, settings_factory) -> None:
     run_dir = tmp_path / "run"
     run_dir.mkdir()
 
@@ -105,9 +103,7 @@ def test_cache_hit_charges_zero_actual_and_fifty_billed(
     assert record.units == Units(actual=0, billed=50)
 
 
-def test_cache_miss_charges_actual_equal_to_billed(
-    tmp_path: Path, settings_factory
-) -> None:
+def test_cache_miss_charges_actual_equal_to_billed(tmp_path: Path, settings_factory) -> None:
     run_dir = tmp_path / "run"
     run_dir.mkdir()
 
@@ -119,9 +115,7 @@ def test_cache_miss_charges_actual_equal_to_billed(
     assert record.units == Units(actual=50, billed=50)
 
 
-def test_429_then_200_retries_once_with_backoff(
-    tmp_path: Path, settings_factory
-) -> None:
+def test_429_then_200_retries_once_with_backoff(tmp_path: Path, settings_factory) -> None:
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     sleeps: list[float] = []
@@ -131,9 +125,7 @@ def test_429_then_200_retries_once_with_backoff(
             return httpx.Response(429, json={"error": "rate limited"})
         return httpx.Response(200, json=STATS_PAYLOAD, headers=CACHE_HIT_HEADERS)
 
-    record = _client(settings_factory, handler, sleeps=sleeps).execute(
-        _stats_spec(), run_dir
-    )
+    record = _client(settings_factory, handler, sleeps=sleeps).execute(_stats_spec(), run_dir)
 
     assert record.status == 200
     assert record.attempts == 2
@@ -180,9 +172,7 @@ def test_401_is_not_retried(tmp_path: Path, settings_factory) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(401, json={"error": "unauthorized"})
 
-    record = _client(settings_factory, handler, sleeps=sleeps).execute(
-        _stats_spec(), run_dir
-    )
+    record = _client(settings_factory, handler, sleeps=sleeps).execute(_stats_spec(), run_dir)
 
     assert record.status == 401
     assert record.attempts == 1

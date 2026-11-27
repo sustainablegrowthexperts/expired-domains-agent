@@ -1,0 +1,30 @@
+{
+  "version": "v3",
+  "enabled": true,
+  "length": {
+    "enabled": true,
+    "min": 3,
+    "max": 35
+  },
+  "hyphens": {
+    "enabled": true,
+    "max": 1
+  },
+  "numbers": {
+    "enabled": true,
+    "max": 1
+  },
+  "tld_allow": {
+    "enabled": true,
+    "values": ["com", "com.sg", "sg", "org"]
+  },
+  "max_price_usd": {
+    "enabled": true,
+    "value": 500
+  },
+  "min_hours_to_close": {
+    "enabled": true,
+    "value": 6
+  },
+  "niche_overrides": {}
+}

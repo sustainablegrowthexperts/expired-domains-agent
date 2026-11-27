@@ -61,9 +61,7 @@ def test_live_enrich_writes_raw_files_index_rows_and_units(
 
         request_ids = {
             row["query_id"]
-            for row in conn.execute(
-                "SELECT query_id FROM requests WHERE run_id = ?", (run_id,)
-            )
+            for row in conn.execute("SELECT query_id FROM requests WHERE run_id = ?", (run_id,))
         }
         assert request_ids == set(QUERY_IDS)
 
@@ -79,8 +77,7 @@ def test_live_enrich_writes_raw_files_index_rows_and_units(
         assert counts["anchors"] > 0
         assert (
             conn.execute(
-                "SELECT COUNT(*) FROM history "
-                "WHERE run_id = ? AND series = 'refdomains'",
+                "SELECT COUNT(*) FROM history WHERE run_id = ? AND series = 'refdomains'",
                 (run_id,),
             ).fetchone()[0]
             > 0
@@ -105,15 +102,11 @@ def test_live_enrich_writes_raw_files_index_rows_and_units(
     actual = manifest["units_actual_total"]
     billed = manifest["units_billed_total"]
     cache_hits = [
-        entry["query_id"]
-        for entry in manifest["requests"]
-        if entry.get("cache") == "hit"
+        entry["query_id"] for entry in manifest["requests"] if entry.get("cache") == "hit"
     ]
     assert actual > 0
     assert billed >= actual
     assert 2700 <= billed <= 4100
     if not 2700 <= actual <= 4100:
         assert cache_hits, f"actual units {actual} outside 2700-4100 without cache hits"
-    print(
-        f"live units: actual={actual} billed={billed} cache_hits={cache_hits}"
-    )
+    print(f"live units: actual={actual} billed={billed} cache_hits={cache_hits}")

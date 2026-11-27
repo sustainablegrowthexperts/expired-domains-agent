@@ -229,9 +229,7 @@ def compute_coverage(
 
     unique = len({row.link_hash for row in (*top_dr_rows, *latest_rows)})
     top_anchors = sum(1 for row in anchor_rows if row.source_query == "top_anchors")
-    lexicon_anchors = sum(
-        1 for row in anchor_rows if row.source_query == "lexicon_anchors"
-    )
+    lexicon_anchors = sum(1 for row in anchor_rows if row.source_query == "lexicon_anchors")
     return Coverage(
         mode="top_n",
         stats=stats,

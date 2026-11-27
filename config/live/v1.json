@@ -1,0 +1,34 @@
+{
+  "version": "v1",
+  "enabled": true,
+  "timeout_seconds": 10.0,
+  "max_redirects": 10,
+  "max_body_bytes": 50000,
+  "content_min_term_hits": 2,
+  "toxic_categories": [
+    "adult",
+    "gambling",
+    "pharma",
+    "payday",
+    "crypto_scam",
+    "counterfeit",
+    "link_selling_seo",
+    "evasions"
+  ],
+  "parking_terms": [
+    "domain for sale",
+    "buy this domain",
+    "this domain is for sale",
+    "make an offer",
+    "inquire about this domain",
+    "domain parking",
+    "parked domain",
+    "parked free",
+    "sedo",
+    "afternic",
+    "hugedomains",
+    "bodis",
+    "parkingcrew",
+    "dan.com"
+  ]
+}

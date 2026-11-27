@@ -252,14 +252,10 @@ def test_full_mocked_run_prints_nine_lines_and_summary(
     assert len(manifest["requests"]) == 9
     assert all(entry["error"] is None for entry in manifest["requests"])
     assert manifest["error"] is None
-    assert all(
-        (run_dirs[0] / f"{query_id}.p0.json").is_file() for query_id in QUERY_IDS
-    )
+    assert all((run_dirs[0] / f"{query_id}.p0.json").is_file() for query_id in QUERY_IDS)
 
 
-def test_same_day_run_without_force_is_refused(
-    settings_factory, capsys, monkeypatch
-) -> None:
+def test_same_day_run_without_force_is_refused(settings_factory, capsys, monkeypatch) -> None:
     settings = settings_factory()
     existing_id, _fetched_at = _seed_today_run(settings)
     attempts, _payloads = _install_fixture_client(monkeypatch)
@@ -301,9 +297,7 @@ def test_force_bypasses_the_guard_and_keeps_the_previous_run(
 
     conn = connect(settings.db_path)
     try:
-        run_ids = {
-            row["run_id"] for row in conn.execute("SELECT run_id FROM runs")
-        }
+        run_ids = {row["run_id"] for row in conn.execute("SELECT run_id FROM runs")}
         assert len(run_ids) == 2
         assert existing_id in run_ids
         new_run_id = next(run_id for run_id in run_ids if run_id != existing_id)
@@ -350,13 +344,9 @@ def test_one_failed_query_is_recorded_and_the_run_continues(
         assert set(statuses.values()) == {200}
 
         run = conn.execute("SELECT * FROM runs").fetchone()
-        assert json.loads(run["error"]) == {
-            "metrics_history": "HTTP 500 after 6 attempt(s)"
-        }
+        assert json.loads(run["error"]) == {"metrics_history": "HTTP 500 after 6 attempt(s)"}
         assert (
-            conn.execute(
-                "SELECT COUNT(*) FROM history WHERE series = 'org_traffic'"
-            ).fetchone()[0]
+            conn.execute("SELECT COUNT(*) FROM history WHERE series = 'org_traffic'").fetchone()[0]
             == 0
         )
     finally:
@@ -366,9 +356,7 @@ def test_one_failed_query_is_recorded_and_the_run_continues(
     assert len(run_dirs) == 1
     manifest = json.loads((run_dirs[0] / "manifest.json").read_text(encoding="utf-8"))
     failures = {
-        entry["query_id"]: entry["error"]
-        for entry in manifest["requests"]
-        if entry["error"]
+        entry["query_id"]: entry["error"] for entry in manifest["requests"] if entry["error"]
     }
     assert failures == {"metrics_history": "HTTP 500 after 6 attempt(s)"}
     assert manifest["error"] == failures
@@ -377,9 +365,7 @@ def test_one_failed_query_is_recorded_and_the_run_continues(
         assert (run_dirs[0] / f"{query_id}.p0.json").is_file()
         assert (run_dirs[0] / f"{query_id}.p0.headers.json").is_file()
 
-    failed_raw = json.loads(
-        (run_dirs[0] / "metrics_history.p0.json").read_text(encoding="utf-8")
-    )
+    failed_raw = json.loads((run_dirs[0] / "metrics_history.p0.json").read_text(encoding="utf-8"))
     assert failed_raw["payload"] is None
     assert failed_raw["request"]["status"] == 500
     assert failed_raw["request"]["attempts"] == 6

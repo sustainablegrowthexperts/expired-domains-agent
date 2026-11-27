@@ -1,0 +1,2561 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Domain Hunter · Domain discovery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Fragment+Mono&display=swap" rel="stylesheet">
+<script type="module" src="https://sidebar.sustainable-growth-experts.com/sge-sidebar.js"></script>
+<style>
+:root{
+  --bg:#f7f7f5; --panel:#fff; --ink:#18181b; --ink2:#52525b; --ink3:#a1a1aa; --line:#e7e7e4; --line2:#f0f0ee;
+  --hover:#f4f4f2; --sel:#eef2ff; --accent:#3f51d8; --accent-ink:#fff;
+  --buy:#15803d; --buy-bg:#e8f5ec; --maybe:#a16207; --maybe-bg:#fdf3dc; --rej:#b91c1c; --rej-bg:#fdecec;
+  --soon:#c2410c; --r:8px; --mono:"Fragment Mono",ui-monospace,monospace;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#111113; --panel:#18181b; --ink:#ececee; --ink2:#a1a1aa; --ink3:#63636b; --line:#2a2a2e; --line2:#202024;
+  --hover:#1f1f23; --sel:#1e2140; --accent:#7c8cff; --accent-ink:#0b0b10;
+  --buy:#4ade80; --buy-bg:#13261a; --maybe:#fbbf24; --maybe-bg:#2a2210; --rej:#f87171; --rej-bg:#2c1414; --soon:#fb923c;
+}}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{font:14px/1.45 "Instrument Sans",system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+[hidden]{display:none!important}
+
+/* top bar */
+.bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;height:52px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.mark{display:flex;align-items:center;gap:8px;text-decoration:none;font-weight:600;color:inherit}
+.glyph{display:grid;place-items:center;width:26px;height:26px;border-radius:6px;background:var(--ink);color:var(--bg);font:600 11px var(--mono)}
+.sp{flex:1}
+.fresh{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2);margin:0;padding:4px 10px;border-radius:99px;background:var(--line2);cursor:default;white-space:nowrap}
+.fresh::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--buy)}
+
+/* layout */
+.desk-grid{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:calc(100vh - 52px)}
+.side{position:sticky;top:52px;height:calc(100vh - 52px);overflow:auto;padding:16px 10px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:14px}
+.side h3{margin:0 0 4px 10px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)}
+.side-foot{margin-top:auto;padding:0 10px;font-size:12px;color:var(--ink3);line-height:1.5}
+.side-foot p{margin:0 0 4px;overflow-wrap:anywhere}
+.views{list-style:none;margin:0;padding:0}
+.views button{display:flex;align-items:center;gap:8px;width:100%;padding:6px 10px;border:0;border-radius:6px;background:none;cursor:pointer;text-align:left;color:var(--ink2)}
+.views button:hover{background:var(--hover);color:var(--ink)}
+.views button[aria-current="true"]{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--line)}
+.views .n{margin-left:auto;font:12px var(--mono);color:var(--ink3)}
+.views .n:empty{display:none}
+.live{width:7px;height:7px;border-radius:50%;background:var(--maybe);margin-left:6px;flex:none}
+.live.on{background:var(--accent);animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+#tip{position:fixed;z-index:100;max-width:340px;padding:7px 9px;border-radius:6px;background:var(--ink);color:var(--bg);font-size:12px;line-height:1.4;box-shadow:0 6px 20px rgba(0,0,0,.18);pointer-events:none;white-space:normal}
+.views .step{display:inline-grid;place-items:center;flex:none;width:16px;height:16px;border-radius:50%;border:1px solid var(--line);font:600 9px/1 var(--mono);color:var(--ink3)}
+.views button[aria-current="true"] .step{border-color:var(--ink2);color:var(--ink2)}
+.srcname{display:inline-flex;align-items:center;gap:4px;min-width:0}
+.info{display:inline-grid;place-items:center;flex:none;width:14px;height:14px;border-radius:50%;border:1px solid var(--ink3);color:var(--ink3);font:600 9px/1 var(--mono);cursor:help}
+.info:hover{color:var(--ink);border-color:var(--ink2)}
+.views button[aria-current="true"] .info{border-color:var(--ink2);color:var(--ink2)}
+.pl{padding-top:10px;border-top:1px solid var(--line)}
+.pl:first-child{padding-top:0;border-top:0}
+.pl summary{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:0 0 4px;padding:7px 10px;border-radius:6px;list-style:none;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink)}
+.pl summary::-webkit-details-marker{display:none}
+.pl summary::after{content:"";width:6px;height:6px;border-right:1.5px solid var(--ink2);border-bottom:1.5px solid var(--ink2);transform:rotate(-45deg);transition:transform .15s;margin-right:4px}
+.pl[open] summary::after{transform:rotate(45deg) translate(-2px,-2px)}
+.pl summary:hover{background:var(--hover)}
+.pl-none{margin:0 0 0 10px;font-size:12px;color:var(--ink3)}
+
+.main{min-width:0;padding:20px 24px 40px}
+.viewhead{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+.viewhead h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
+.count{font:13px var(--mono);color:var(--ink3)}
+.veyebrow{margin:0 0 2px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)}
+.seg{display:inline-flex;gap:2px;margin:0 0 12px;padding:2px;border:1px solid var(--line);border-radius:var(--r);background:var(--line2)}
+.seg button{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:0;border-radius:6px;background:none;color:var(--ink2);cursor:pointer;font-size:13px}
+.seg button[aria-pressed="true"]{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--line)}
+.seg .num{font:11px var(--mono);color:var(--ink3)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.chips .chip[aria-pressed="true"]{background:var(--sel);border-color:var(--accent);color:var(--accent)}
+.chips .chip[aria-pressed="false"]{color:var(--ink2)}
+.chips .cnt{margin-left:2px}
+
+/* toolbar */
+.filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
+.search{position:relative;flex:1 1 240px;max-width:340px}
+.search input{width:100%;height:32px;padding:0 30px 0 32px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
+.search::before{content:"";position:absolute;left:11px;top:10px;width:9px;height:9px;border:1.6px solid var(--ink3);border-radius:50%}
+.search::after{content:"/";position:absolute;right:8px;top:7px;font:11px var(--mono);color:var(--ink3);border:1px solid var(--line);border-radius:4px;padding:0 5px;line-height:16px}
+.search:focus-within::after{display:none}
+.chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);font-size:13px;color:var(--ink2);cursor:pointer;white-space:nowrap}
+.chip input[type=checkbox]{accent-color:var(--accent);margin:0}
+.chip select{border:0;background:none;padding:0;color:var(--ink);font-weight:500;outline:none;cursor:pointer}
+.chip .cnt{font-size:11px;color:var(--ink3)}
+.link{background:none;border:0;padding:0;color:var(--accent);cursor:pointer;text-decoration:none;font-weight:500}
+.link:hover{text-decoration:underline}
+.pass-action{margin-left:8px}
+
+.todo-note{margin:0 0 12px;padding:8px 12px;border-radius:var(--r);background:var(--maybe-bg);color:var(--maybe);font-size:13px}
+.todo-note b{font-weight:600}
+
+/* table */
+.tablewrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:clip}
+.grid{width:100%;border-collapse:collapse}
+.grid th{position:sticky;top:52px;z-index:5;background:var(--panel);text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);padding:0 12px;height:36px;border-bottom:1px solid var(--line)}
+.grid th button{all:unset;cursor:pointer}
+.grid th button:hover{color:var(--ink)}
+.grid th[aria-sort] button{color:var(--ink)}
+.grid th[aria-sort="ascending"] button::after{content:" ↑"} .grid th[aria-sort="descending"] button::after{content:" ↓"}
+.grid td{padding:10px 12px;border-bottom:1px solid var(--line2);vertical-align:middle}
+.grid tbody tr:last-child td{border-bottom:0}
+.grid tbody tr:hover{background:var(--hover)}
+.dom{font-weight:600}
+.src{font-size:12px;color:var(--ink2);white-space:nowrap}
+.mute{color:var(--ink2)}
+.tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:4px;background:var(--line2);color:var(--ink2);white-space:nowrap}
+.tag.todo{background:var(--maybe-bg);color:var(--maybe)}
+.tag.blocked{background:#f6e2e2;color:#8a2f2f}
+.blocked-row{background:#fcf7f7}
+.none{color:var(--ink3)}
+.dots{display:inline-flex;gap:3px;margin-right:8px;vertical-align:1px}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.dots i.p{background:var(--buy)}
+.oc{font-size:12px;color:var(--ink2)}
+.oc.pass{color:var(--buy)}
+.oc.fail{color:var(--rej)}
+.oc.blocked{color:#8a2f2f}
+.c-niche,.c-collected{white-space:nowrap}
+.more{display:block;width:100%;height:40px;border:0;border-top:1px solid var(--line2);background:none;color:var(--accent);font-weight:500;cursor:pointer}
+.more:hover{background:var(--hover)}
+.emptystate{padding:56px 20px;text-align:center}
+.emptystate h2{margin:0 0 4px;font-size:15px}
+.emptystate p{margin:0 0 14px;color:var(--ink2)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:var(--r);border:1px solid var(--line);background:var(--panel);cursor:pointer;text-decoration:none;font-weight:500;white-space:nowrap;color:inherit}
+.btn:hover{background:var(--hover)}
+
+/* domain detail modal */
+.dom-link{all:unset;font-weight:600;cursor:pointer;border-radius:3px}
+.dom-link:hover{color:var(--accent);text-decoration:underline}
+tr.clickable{cursor:pointer}
+.detail{position:fixed;inset:0;margin:auto;border:0;padding:0;background:transparent;max-width:none;max-height:none;width:100%;height:100%;overflow:visible}
+.detail:not([open]){display:none}
+.detail[open]{display:flex;align-items:center;justify-content:center}
+.detail::backdrop{background:rgba(15,15,20,.48)}
+.detail-panel{display:flex;flex-direction:column;width:min(1060px,94vw);max-height:88vh;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.28);overflow:hidden}
+.detail-top{display:flex;align-items:flex-start;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+.detail-heading{min-width:0}
+.detail-top h2{margin:0;font-size:19px;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere}
+.detail-eyebrow{margin:0 0 2px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3)}
+.detail-badges{margin-top:7px}
+.detail-close{margin-left:auto;flex:none;display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink2);cursor:pointer;font-size:15px;line-height:1}
+.detail-close:hover{background:var(--hover);color:var(--ink)}
+.detail-body{overflow:auto;padding:18px 20px 30px;display:flex;flex-direction:column;gap:16px}
+.detail-body>*{flex:none}
+.dsec{margin:0;min-width:0}
+.dsec h3{margin:0 0 9px;font-size:13px;font-weight:600;color:var(--ink)}
+.dsec h3 .sub{margin-left:8px;font-weight:400;color:var(--ink3);font-size:12px}
+.dstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.dstat{min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}
+.dstat>span{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3)}
+.dstat>b{display:block;margin-top:3px;font-size:15px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}
+.dstat>b.ok{color:var(--buy)}
+.dstat>b.bad{color:var(--rej)}
+.dstat>b.warn{color:var(--maybe)}
+.dstat>small{display:block;margin-top:2px;font-size:11px;color:var(--ink3);overflow-wrap:anywhere}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(124px,1fr));gap:8px}
+.kpi{padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.kpi>span{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin-bottom:3px}
+.kpi>b{font-size:17px;font-weight:600}
+.kpi>small{display:block;margin-top:2px;font-size:11px;color:var(--ink3)}
+.dpills{display:flex;flex-wrap:wrap;gap:6px}
+.dpill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;background:var(--line2);color:var(--ink2);font-size:12px;white-space:nowrap}
+.dpill.ok{background:var(--buy-bg);color:var(--buy)}
+.dpill.bad{background:var(--rej-bg);color:var(--rej)}
+.dpill.warn{background:var(--maybe-bg);color:var(--maybe)}
+.dnote{margin:0;padding:8px 11px;border-radius:8px;background:var(--line2);color:var(--ink2);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.dnote.bad{background:var(--rej-bg);color:var(--rej)}
+.dnote.warn{background:var(--maybe-bg);color:var(--maybe)}
+.dnote.ok{background:var(--buy-bg);color:var(--buy)}
+.dlead{margin:0;padding:11px 13px;border:1px solid var(--line);border-radius:9px;background:var(--bg);font-size:13px;line-height:1.55;color:var(--ink2);overflow-wrap:anywhere}
+.dmeta{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:2px 18px;margin:0}
+.dmeta div{display:flex;gap:8px;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--line2);font-size:12px}
+.dmeta dt{color:var(--ink3);flex:none}
+.dmeta dd{margin:0;text-align:right;overflow-wrap:anywhere;min-width:0}
+.dstack{margin-top:10px}
+.dmeters{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:10px}
+.dmeter-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:4px;font-size:11px;color:var(--ink2)}
+.dmeter-head b{font-weight:600;color:var(--ink)}
+.dmeter-track{height:6px;border-radius:99px;background:var(--line2);overflow:hidden}
+.dmeter-fill{display:block;height:100%;border-radius:99px;background:var(--accent)}
+.dmeter-fill.ok{background:var(--buy)}
+.dmeter-fill.warn{background:var(--maybe)}
+.dmeter-fill.bad{background:var(--rej)}
+.dpipe{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.dpipe-row{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:2px 10px;align-items:start;padding:9px 12px;border-bottom:1px solid var(--line2)}
+.dpipe-row:last-child{border-bottom:0}
+.dpipe-dot{width:8px;height:8px;margin-top:5px;border-radius:50%;background:var(--line)}
+.dpipe-row.pass .dpipe-dot{background:var(--buy)}
+.dpipe-row.fail .dpipe-dot{background:var(--rej)}
+.dpipe-row.warn .dpipe-dot{background:var(--maybe)}
+.dpipe-label{min-width:0;font-size:13px;font-weight:500;overflow-wrap:anywhere}
+.dpipe-value{font-size:12px;color:var(--ink2);text-align:right;white-space:nowrap}
+.dpipe-reason{grid-column:2/-1;margin:2px 0 0;font-size:12px;color:var(--ink2);line-height:1.45;overflow-wrap:anywhere}
+.dfold{border:1px solid var(--line);border-radius:9px;background:var(--panel);overflow:hidden}
+.dfold>summary{display:flex;align-items:center;gap:8px;padding:10px 12px;list-style:none;cursor:pointer;background:var(--bg)}
+.dfold>summary::-webkit-details-marker{display:none}
+.dfold>summary:hover{background:var(--hover)}
+.dfold-title{font-size:13px;font-weight:600;white-space:nowrap}
+.dfold>summary .sub{min-width:0;font-size:12px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dfold>summary::after{content:"";flex:none;width:6px;height:6px;margin-left:auto;border-right:1.5px solid var(--ink2);border-bottom:1.5px solid var(--ink2);transform:rotate(45deg);transition:transform .15s}
+.dfold[open]>summary::after{transform:rotate(-135deg)}
+.dfold-body{display:flex;flex-direction:column;gap:12px;padding:12px;border-top:1px solid var(--line2)}
+.dscroll{max-height:310px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.dgrid{width:100%;border-collapse:collapse;font-size:12px}
+.dgrid th{position:sticky;top:0;z-index:1;background:var(--panel);text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);white-space:nowrap}
+.dgrid td{padding:7px 9px;border-bottom:1px solid var(--line2);vertical-align:top;overflow-wrap:anywhere}
+.dgrid tbody tr:last-child td{border-bottom:0}
+.dgrid tbody tr:hover{background:var(--hover)}
+.dgrid .clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.dgrid .num{white-space:nowrap}
+.dgrid a{color:var(--accent);text-decoration:none;overflow-wrap:anywhere}
+.dgrid a:hover{text-decoration:underline}
+.chart{margin:0 0 10px}
+.chart svg{display:block;width:100%;height:auto;color:var(--accent)}
+.chart .area{fill:currentColor;opacity:.12;stroke:none}
+.chart .line{fill:none;stroke:currentColor;stroke-width:2;vector-effect:non-scaling-stroke}
+.chart-x{display:flex;justify-content:space-between;margin-top:2px;font:11px var(--mono);color:var(--ink3)}
+.chart-cap{margin:0 0 4px;font-size:12px;color:var(--ink2)}
+.dseries{margin:0 0 16px}
+.dseries:last-child{margin-bottom:0}
+.dseries h4{margin:0 0 4px;font-size:12px;font-weight:600}
+details.dvalues{margin-top:6px;font-size:12px}
+details.dvalues summary{cursor:pointer;color:var(--accent);font-weight:500}
+details.dvalues .dscroll{margin-top:6px;max-height:210px}
+
+@media (max-width:767px){
+  .detail-panel{width:100vw;height:100dvh;max-height:100dvh;border-radius:0;border:0}
+  .detail-body{padding:14px 12px 26px}
+  .dstats,.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .detail-top{padding:12px 14px}
+  .dpipe-row{grid-template-columns:10px minmax(0,1fr)}
+  .dpipe-value{grid-column:2;text-align:left}
+  .dfold>summary .sub{display:none}
+  .dgrid .clamp{-webkit-line-clamp:3}
+}
+
+/* SGE global rail */
+sge-sidebar{display:block;height:100%}
+.shell{min-width:0}
+@media (min-width:768px){
+  sge-sidebar{width:64px}
+  body.desk{display:grid;grid-template-columns:64px minmax(0,1fr)}
+  body.desk>sge-sidebar{position:sticky;top:0;height:100vh;align-self:start;z-index:40}
+}
+
+@media (prefers-reduced-motion:reduce){.live.on{animation:none}}
+@media (max-width:767px){
+  body.desk{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+  .desk-grid{display:block}
+  .side{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:8px 10px;flex-direction:row;gap:12px;overflow-x:auto}
+  .side .pl{flex:none}
+  .side-foot{display:none}
+  .pl summary{display:none}
+  .views{display:flex;gap:2px}
+  .views button{white-space:nowrap}
+  .main{padding:14px 12px 32px}
+  .fresh{display:none}
+  .grid thead{display:none}
+  .grid,.grid tbody,.grid tr,.grid td{display:block}
+  .grid tr{position:relative;padding:10px 12px;border-bottom:1px solid var(--line2)}
+  .grid td{padding:0;border:0}
+  .grid .c-niche,.grid .c-collected,.grid .c-progress,.grid .c-price,.grid .c-bid-end,.grid .c-pass,.grid .c-reason,.grid .c-coverage,.grid .c-links,.grid .c-refdomains,.grid .c-units,.grid .c-requests{display:inline-block;margin:6px 12px 0 0;font-size:13px}
+  .grid td.c-dom{margin-bottom:3px}
+  .grid td.c-reason{display:block;margin-top:6px}
+  .seg{margin-bottom:10px}
+}
+</style>
+</head>
+<body class="desk">
+<sge-sidebar src="https://sidebar.sustainable-growth-experts.com/menu.json" theme="light"></sge-sidebar>
+<div class="shell">
+<header class="bar">
+  <span class="mark"><span class="glyph" aria-hidden="true">DH</span><span>Domain Hunter</span></span>
+  <div class="sp"></div>
+  <span class="fresh" id="generated" title="">Generated</span>
+</header>
+
+<div class="desk-grid">
+  <aside class="side" aria-label="Views">
+    <details class="pl" open>
+      <summary><span>Domain discovery</span></summary>
+      <ul class="views disc" id="source-views"></ul>
+    </details>
+    <details class="pl" open>
+      <summary><span>Evaluation pipeline</span></summary>
+      <ul class="views" id="pipeline-views">
+        <li><button type="button" data-view="prefilter" aria-current="false"><b class="step">1</b>Pre-Filter<span class="live" id="prefilter-live" hidden></span><span class="n" id="prefilter-count"></span></button></li>
+        <li><button type="button" data-view="keyword-check" aria-current="false"><b class="step">2</b>Keyword check<span class="live" id="keyword-live" hidden></span><span class="n" id="keyword-count"></span></button></li>
+        <li><button type="button" data-view="dr-check" aria-current="false"><b class="step">3</b>Free DR check<span class="live" id="dr-live" hidden></span><span class="n" id="dr-count"></span></button></li>
+        <li><button type="button" data-view="live-check" aria-current="false"><b class="step">4</b>Live check<span class="live" id="live-live" hidden></span><span class="n" id="live-count"></span></button></li>
+        <li><button type="button" data-view="wayback-check" aria-current="false"><b class="step">5</b>Wayback Machine Checks<span class="live" id="wayback-live" hidden></span><span class="n" id="wayback-count"></span></button></li>
+        <li><button type="button" data-view="data-collection" aria-current="false"><b class="step">6</b>Data collection<span class="live" id="collection-live" hidden></span><span class="n" id="collection-count"></span></button></li>
+        <li><button type="button" data-view="evaluated-domains" aria-current="false"><b class="step">7</b>Evaluated Domains<span class="live" id="evaluation-live" hidden></span><span class="n" id="evaluation-count"></span></button></li>
+      </ul>
+    </details>
+    <div class="side-foot">
+      <p id="db-path"></p>
+      <p id="collection-budget"></p>
+      <p>Niches come from local dictionaries, then an LLM pass for unknown names.</p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <p class="veyebrow" id="veyebrow">Domain discovery</p>
+    <div class="viewhead">
+      <h1 id="vtitle">All discovered</h1>
+      <span class="count" id="count" aria-live="polite"></span>
+    </div>
+
+    <div class="seg" id="seg" role="group" aria-label="Pre-filter result" hidden></div>
+    <div class="chips" id="prefilter-reasons" role="group" aria-label="Failed pre-filter reasons" hidden></div>
+
+    <div class="filters" role="search" aria-label="Filters">
+      <label class="search"><span class="sr">Search domains</span><input type="search" id="f-q" placeholder="Search domains" autocomplete="off"></label>
+      <label class="chip"><span>Niche</span><select id="f-niche"></select></label>
+      <label class="chip"><span>Source</span><select id="f-src"></select></label>
+      <label class="chip" id="pend-chip"><input type="checkbox" id="f-pend"><span>Pending classification only</span><span class="cnt" id="pendn"></span></label>
+      <button type="button" class="link" id="clear" hidden>Clear</button>
+    </div>
+
+    <div class="tablewrap">
+      <table class="grid" id="tbl">
+        <thead><tr></tr></thead>
+        <tbody></tbody>
+      </table>
+      <button type="button" class="more" id="more" hidden>Show more</button>
+      <div class="emptystate" id="empty" hidden>
+        <h2 id="empty-h">No domains</h2>
+        <p id="empty-p"></p>
+        <button type="button" class="btn" id="empty-clear">Clear filters</button>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+<div id="tip" role="tooltip" hidden></div>
+
+<dialog id="detail" class="detail" aria-labelledby="detail-title">
+  <div class="detail-panel">
+    <header class="detail-top">
+      <div class="detail-heading">
+        <p class="detail-eyebrow">Domain detail</p>
+        <h2 id="detail-title">Domain</h2>
+        <div class="dpills detail-badges" id="detail-badges"></div>
+      </div>
+      <button type="button" class="detail-close" id="detail-close" aria-label="Close domain detail">✕</button>
+    </header>
+    <div class="detail-body" id="detail-body"></div>
+  </div>
+</dialog>
+
+<script>
+/* The SGE rail follows the page's light/dark preference. */
+(function () {
+  const rail = document.querySelector('sge-sidebar');
+  if (!rail) return;
+  const query = window.matchMedia('(prefers-color-scheme: dark)');
+  const apply = () => rail.setAttribute('theme', query.matches ? 'dark' : 'light');
+  apply();
+  if (query.addEventListener) query.addEventListener('change', apply);
+  else query.addListener(apply);
+})();
+</script>
+
+<script id="rows-data" type="application/json">__ROWS_DATA__</script>
+<script id="meta-data" type="application/json">__META_DATA__</script>
+<script id="detail-data" type="application/json">__DETAILS_DATA__</script>
+<script>
+const ROWS = JSON.parse(document.getElementById('rows-data').textContent);
+const META = JSON.parse(document.getElementById('meta-data').textContent);
+const DETAILS = JSON.parse(document.getElementById('detail-data').textContent);
+const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[character]));
+const SOURCE_BY = Object.fromEntries(META.sources.map(source => [source.slug, source]));
+const NICHE_LABELS = Object.fromEntries(META.niches.map(niche => [niche.value, niche.label]));
+const SOURCE_SLUGS = new Set(META.sources.map(source => source.slug));
+const WRITABLE = !!META.writable;
+const ALLOWED_DISCOVERY_SORT = new Set(['domain', 'source', 'niche', 'collected', 'reached']);
+const ALLOWED_PREFILTER_PASS_SORT = new Set(['domain', 'source', 'niche', 'price', 'bid_end_at', 'pass']);
+const ALLOWED_PREFILTER_FAIL_SORT = new Set([...ALLOWED_PREFILTER_PASS_SORT, 'reason']);
+const ALLOWED_KEYWORD_SORT = new Set(['domain', 'source', 'niche', 'price', 'bid_end_at', 'keyword']);
+const ALLOWED_DR_SORT = new Set(['domain', 'source', 'niche', 'price', 'bid_end_at', 'dr']);
+const ALLOWED_LIVE_SORT = new Set(['domain', 'source', 'niche', 'price', 'bid_end_at', 'live']);
+const ALLOWED_WAYBACK_SORT = new Set(['domain', 'source', 'niche', 'price', 'bid_end_at', 'wayback']);
+const ALLOWED_COLLECTION_SORT = new Set(['domain', 'source', 'niche', 'collection_status', 'collection_at', 'coverage', 'live_links', 'live_refdomains', 'collection_units', 'requests_ok']);
+const ALLOWED_EVALUATION_SORT = new Set(['domain', 'source', 'niche', 'price', 'bid_end_at', 'evaluation', 'score', 'evidence', 'recommendation']);
+const PREFILTER_SLUG = 'prefilter';
+const KEYWORD_SLUG = 'keyword-check';
+const DR_SLUG = 'dr-check';
+const LIVE_SLUG = 'live-check';
+const WAYBACK_SLUG = 'wayback-check';
+const COLLECTION_SLUG = 'data-collection';
+const EVALUATION_SLUG = 'evaluated-domains';
+const DISCOVERY_COLUMNS = [['domain', 'Domain'], ['source', 'Source'], ['niche', 'Niche'], ['collected', 'Collected'], ['reached', 'Progress']];
+const PREFILTER_PASSED_COLUMNS = [['domain', 'Domain'], ['source', 'Source'], ['niche', 'Niche'], ['price', 'Price'], ['bid_end_at', 'Bid ends'], ['pass', 'Result']];
+const PREFILTER_FAILED_COLUMNS = [...PREFILTER_PASSED_COLUMNS, ['reason', 'Reason']];
+const KEYWORD_COLUMNS = [['domain', 'Domain'], ['source', 'Source'], ['niche', 'Niche'], ['price', 'Price'], ['bid_end_at', 'Bid ends'], ['keyword', 'Keyword check']];
+const DR_COLUMNS = [['domain', 'Domain'], ['source', 'Source'], ['niche', 'Niche'], ['price', 'Price'], ['bid_end_at', 'Bid ends'], ['dr', 'Free DR check']];
+const LIVE_COLUMNS = [['domain', 'Domain'], ['source', 'Source'], ['niche', 'Niche'], ['price', 'Price'], ['bid_end_at', 'Bid ends'], ['live', 'Live check']];
+const WAYBACK_COLUMNS = [['domain', 'Domain'], ['source', 'Source'], ['niche', 'Niche'], ['price', 'Price'], ['bid_end_at', 'Bid ends'], ['wayback', 'Wayback check']];
+const COLLECTION_COLUMNS = [['domain', 'Domain'], ['source', 'Source'], ['niche', 'Niche'], ['collection_status', 'Data'], ['collection_at', 'Last run'], ['coverage', 'Coverage'], ['live_links', 'Live links'], ['live_refdomains', 'Live RDs'], ['collection_units', 'Units'], ['requests_ok', 'Requests']];
+const EVALUATION_COLUMNS = [['domain', 'Domain'], ['source', 'Source'], ['niche', 'Niche'], ['price', 'Price'], ['bid_end_at', 'Bid ends'], ['evaluation', 'Verdict'], ['score', 'Score'], ['evidence', 'Evidence'], ['recommendation', 'Recommendation']];
+const KEYWORD_FILTERS = {passed: 'Passed', failed: 'Failed', processing: 'Processing'};
+const DR_FILTERS = {passed: 'Passed', failed: 'Failed', processing: 'Processing'};
+const LIVE_FILTERS = {passed: 'Passed', failed: 'Failed', processing: 'Processing'};
+const WAYBACK_FILTERS = {passed: 'Passed', failed: 'Failed', connection_failed: 'Connection failed', processing: 'Processing'};
+const COLLECTION_FILTERS = {queued: 'Queued', collected: 'Collected', failed: 'Failed'};
+const EVALUATION_FILTERS = {passed: 'Passed', failed: 'Failed'};
+
+const DEF = {view: 'all', niche: 'all', src: 'all', res: 'pass', reasons: 'all', kres: 'processing', dres: 'processing', lres: 'processing', wres: 'processing', cres: 'queued', eres: 'passed', q: '', pend: 0, sort: 'domain', dir: 1};
+const st = Object.assign({}, DEF, Object.fromEntries(new URLSearchParams(location.hash.slice(1))));
+st.pend = +st.pend ? 1 : 0;
+st.dir = +st.dir < 0 ? -1 : 1;
+if (st.view !== 'all' && st.view !== 'blocked' && st.view !== PREFILTER_SLUG && st.view !== KEYWORD_SLUG && st.view !== DR_SLUG && st.view !== LIVE_SLUG && st.view !== WAYBACK_SLUG && st.view !== COLLECTION_SLUG && st.view !== EVALUATION_SLUG && !SOURCE_SLUGS.has(st.view)) st.view = 'all';
+if (st.src !== 'all' && !SOURCE_SLUGS.has(st.src)) st.src = 'all';
+if (!['pass', 'fail'].includes(st.res)) st.res = 'pass';
+if (!Object.hasOwn(KEYWORD_FILTERS, st.kres)) st.kres = 'processing';
+if (!Object.hasOwn(DR_FILTERS, st.dres)) st.dres = 'processing';
+if (!Object.hasOwn(LIVE_FILTERS, st.lres)) st.lres = 'processing';
+if (!Object.hasOwn(WAYBACK_FILTERS, st.wres)) st.wres = 'processing';
+if (!Object.hasOwn(COLLECTION_FILTERS, st.cres)) st.cres = 'queued';
+if (!Object.hasOwn(EVALUATION_FILTERS, st.eres)) st.eres = 'passed';
+if (!st.reasons) st.reasons = 'all';
+const sortsFor = view => view === PREFILTER_SLUG
+  ? (st.res === 'fail' ? ALLOWED_PREFILTER_FAIL_SORT : ALLOWED_PREFILTER_PASS_SORT)
+  : view === KEYWORD_SLUG ? ALLOWED_KEYWORD_SORT
+    : view === DR_SLUG ? ALLOWED_DR_SORT
+      : view === LIVE_SLUG ? ALLOWED_LIVE_SORT
+        : view === WAYBACK_SLUG ? ALLOWED_WAYBACK_SORT
+          : view === COLLECTION_SLUG ? ALLOWED_COLLECTION_SORT
+            : view === EVALUATION_SLUG ? ALLOWED_EVALUATION_SORT : ALLOWED_DISCOVERY_SORT;
+if (!sortsFor(st.view).has(st.sort)) st.sort = 'domain';
+if (!['all', ...META.niches.map(niche => niche.value)].includes(st.niche)) st.niche = 'all';
+
+const selectedReasons = () => st.reasons === 'all'
+  ? null
+  : String(st.reasons).split(',').map(reason => reason.trim()).filter(Boolean);
+
+let shown = [];
+let limit = 200;
+let lastKey = '';
+
+const nicheMatch = row => st.niche === 'all' || row.niche === st.niche;
+const keywordBucket = row => {
+  const status = row.keyword_check ? row.keyword_check.status : 'processing';
+  if (status === 'reusable') return 'passed';
+  if (status === 'not_reusable') return 'failed';
+  return 'processing';
+};
+const drBucket = row => {
+  const status = row.dr_check ? row.dr_check.status : 'processing';
+  if (status === 'passed') return 'passed';
+  if (status === 'failed') return 'failed';
+  return 'processing';
+};
+const liveBucket = row => {
+  const status = row.live_check ? row.live_check.status : 'processing';
+  if (status === 'passed') return 'passed';
+  if (status === 'failed') return 'failed';
+  return 'processing';
+};
+const waybackBucket = row => {
+  const check = row.wayback_check;
+  const status = check ? check.status : 'processing';
+  if (status === 'passed') return 'passed';
+  if (status === 'failed') {
+    return Number(check.score || 0) > 0 ? 'failed' : 'connection_failed';
+  }
+  return 'processing';
+};
+const evaluationBucket = row => {
+  const evaluation = row.evaluation;
+  if (!evaluation || !evaluation.verdict) return 'processing';
+  return evaluation.verdict === 'Reject' ? 'failed' : 'passed';
+};
+const sourceLabel = slug => slug === 'all'
+  ? 'All discovered'
+  : slug === 'blocked'
+    ? 'Blocked domains'
+    : slug === PREFILTER_SLUG
+      ? (st.res === 'fail' ? 'Failed pre-filter' : 'Passed pre-filter')
+      : slug === KEYWORD_SLUG
+        ? 'Keyword check'
+        : slug === DR_SLUG
+          ? 'Free DR check'
+          : slug === LIVE_SLUG
+            ? 'Live check'
+            : slug === WAYBACK_SLUG
+              ? 'Wayback Machine Checks'
+              : slug === COLLECTION_SLUG
+                ? 'Data collection'
+                : slug === EVALUATION_SLUG
+                  ? 'Evaluated Domains'
+                  : (SOURCE_BY[slug] || {label: slug}).label;
+
+function currentRows() {
+  const query = st.q.trim().toLowerCase();
+  const blockedView = st.view === 'blocked';
+  const prefilterView = st.view === PREFILTER_SLUG;
+  const keywordView = st.view === KEYWORD_SLUG;
+  const drView = st.view === DR_SLUG;
+  const liveView = st.view === LIVE_SLUG;
+  const waybackView = st.view === WAYBACK_SLUG;
+  const collectionView = st.view === COLLECTION_SLUG;
+  const evaluationView = st.view === EVALUATION_SLUG;
+  return ROWS.filter(row => {
+    if (blockedView) {
+      if (!row.blocked) return false;
+      if (st.src !== 'all' && row.source !== st.src) return false;
+      if (query && !row.domain.includes(query)) return false;
+      return true;
+    }
+    if (evaluationView) {
+      if (row.blocked || !row.evaluation) return false;
+      if (evaluationBucket(row) !== st.eres) return false;
+      if (!nicheMatch(row)) return false;
+      if (st.src !== 'all' && row.source !== st.src) return false;
+      if (query && !row.domain.includes(query)
+        && !String(row.evaluation.reason || '').toLowerCase().includes(query)
+        && !String(row.evaluation.verdict || '').toLowerCase().includes(query)) return false;
+      return true;
+    }
+    if (collectionView) {
+      if (row.blocked || !row.collection || !row.collection.eligible) return false;
+      if (row.collection.status !== st.cres) return false;
+      if (!nicheMatch(row)) return false;
+      if (st.src !== 'all' && row.source !== st.src) return false;
+      if (query && !row.domain.includes(query)
+        && !String(row.collection.error || '').toLowerCase().includes(query)) return false;
+      return true;
+    }
+    if (prefilterView) {
+      if (row.blocked || !row.prefilter) return false;
+      if (!nicheMatch(row)) return false;
+      if (st.src !== 'all' && row.source !== st.src) return false;
+      if (st.res === 'pass' && !row.prefilter.pass) return false;
+      if (st.res === 'fail') {
+        if (row.prefilter.pass) return false;
+        const reasons = selectedReasons();
+        if (reasons !== null && !reasons.includes(row.prefilter.reason)) return false;
+      }
+      if (query && !row.domain.includes(query)
+        && !String(row.prefilter.reason || '').toLowerCase().includes(query)) return false;
+      return true;
+    }
+    if (keywordView) {
+      if (row.blocked || !row.prefilter || !row.prefilter.pass) return false;
+      if (keywordBucket(row) !== st.kres) return false;
+      if (!nicheMatch(row)) return false;
+      if (st.src !== 'all' && row.source !== st.src) return false;
+      if (query && !row.domain.includes(query)
+        && !String(row.keyword_check ? row.keyword_check.reason : '').toLowerCase().includes(query)) return false;
+      return true;
+    }
+    if (drView) {
+      if (row.blocked || !row.prefilter || !row.prefilter.pass) return false;
+      if (!row.keyword_check || !row.keyword_check.reusable) return false;
+      if (drBucket(row) !== st.dres) return false;
+      if (!nicheMatch(row)) return false;
+      if (st.src !== 'all' && row.source !== st.src) return false;
+      if (query && !row.domain.includes(query)
+        && !String(row.dr_check ? row.dr_check.reason : '').toLowerCase().includes(query)) return false;
+      return true;
+    }
+    if (liveView) {
+      if (row.blocked || !row.prefilter || !row.prefilter.pass) return false;
+      if (!row.keyword_check || !row.keyword_check.reusable) return false;
+      if (!row.dr_check || !row.dr_check.passed) return false;
+      if (liveBucket(row) !== st.lres) return false;
+      if (!nicheMatch(row)) return false;
+      if (st.src !== 'all' && row.source !== st.src) return false;
+      if (query && !row.domain.includes(query)
+        && !String(row.live_check ? row.live_check.reason : '').toLowerCase().includes(query)) return false;
+      return true;
+    }
+    if (waybackView) {
+      if (row.blocked || !row.prefilter || !row.prefilter.pass) return false;
+      if (!row.keyword_check || !row.keyword_check.reusable) return false;
+      if (!row.dr_check || !row.dr_check.passed) return false;
+      if (META.live_check && META.live_check.enabled
+        && (!row.live_check || !row.live_check.passed)) return false;
+      if (waybackBucket(row) !== st.wres) return false;
+      if (!nicheMatch(row)) return false;
+      if (st.src !== 'all' && row.source !== st.src) return false;
+      if (query && !row.domain.includes(query)
+        && !String(row.wayback_check ? row.wayback_check.reason : '').toLowerCase().includes(query)) return false;
+      return true;
+    }
+    if (row.blocked) return false;
+    if (st.view !== 'all' && row.source !== st.view) return false;
+    if (!nicheMatch(row)) return false;
+    if (st.src !== 'all' && row.source !== st.src) return false;
+    if (st.pend && row.niche !== 'pending') return false;
+    if (query && !row.domain.includes(query)) return false;
+    return true;
+  });
+}
+
+function compare(a, b) {
+  let left;
+  let right;
+  if (st.sort === 'source') {
+    left = a.source_short;
+    right = b.source_short;
+  } else if (st.sort === 'pass' || st.sort === 'reason') {
+    left = a.prefilter ? a.prefilter[st.sort] : null;
+    right = b.prefilter ? b.prefilter[st.sort] : null;
+  } else if (st.sort === 'keyword') {
+    left = a.keyword_check ? a.keyword_check.status : null;
+    right = b.keyword_check ? b.keyword_check.status : null;
+  } else if (st.sort === 'dr') {
+    left = a.dr_check ? a.dr_check.rating : null;
+    right = b.dr_check ? b.dr_check.rating : null;
+  } else if (st.sort === 'live') {
+    left = a.live_check ? a.live_check.class : null;
+    right = b.live_check ? b.live_check.class : null;
+  } else if (st.sort === 'wayback') {
+    left = a.wayback_check ? a.wayback_check.score : null;
+    right = b.wayback_check ? b.wayback_check.score : null;
+  } else if (st.sort === 'evaluation') {
+    left = a.evaluation ? a.evaluation.verdict : null;
+    right = b.evaluation ? b.evaluation.verdict : null;
+  } else if (st.sort === 'score') {
+    left = a.evaluation ? a.evaluation.score : null;
+    right = b.evaluation ? b.evaluation.score : null;
+  } else if (st.sort === 'evidence') {
+    left = a.evaluation ? a.evaluation.evidence_points : null;
+    right = b.evaluation ? b.evaluation.evidence_points : null;
+  } else if (st.sort === 'recommendation') {
+    left = a.evaluation ? a.evaluation.recommendation : null;
+    right = b.evaluation ? b.evaluation.recommendation : null;
+  } else {
+    left = a[st.sort];
+    right = b[st.sort];
+  }
+  const tie = a.domain.localeCompare(b.domain);
+  if (left == null && right == null) return tie;
+  if (left == null) return 1;
+  if (right == null) return -1;
+  if (typeof left === 'number' && typeof right === 'number') {
+    return (left - right) * st.dir || tie;
+  }
+  return String(left).localeCompare(String(right)) * st.dir || tie;
+}
+
+function dots(reached) {
+  return '<span class="dots" aria-hidden="true">'
+    + [1, 2, 3, 4, 5, 6, 7].map(step => `<i class="${step <= reached ? 'p' : ''}"></i>`).join('')
+    + '</span>';
+}
+
+function formatPrice(value) {
+  if (value == null || value === '') return '<span class="none">—</span>';
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '<span class="none">—</span>';
+  return '$' + number.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function bidEndText(value) {
+  if (!value) return '';
+  const compact = /^(\d{4})(\d{2})(\d{2})/.exec(String(value));
+  if (compact) return `${compact[1]}-${compact[2]}-${compact[3]}`;
+  const match = /^(\d{4}-\d{2}-\d{2})(?:T(\d{2}:\d{2}))?/.exec(String(value));
+  if (!match) return String(value);
+  return match[2] ? `${match[1]} ${match[2]}` : match[1];
+}
+
+function formatBidEnd(value) {
+  const text = bidEndText(value);
+  return text ? esc(text) : '<span class="none">—</span>';
+}
+
+/* Domain detail modal */
+const DETAIL_METRIC_LABELS = {
+  price: 'List price',
+  estimated_value: 'Estimated value',
+  auction_end_at: 'Auction ends',
+  listed_at: 'Listed at',
+  expires_at: 'Expires',
+  domain_age_years: 'Domain age (years)',
+  bid_count: 'Bids',
+  sale_type: 'Sale type',
+  keyword_registrations: 'Keyword registrations',
+  exact_match_tlds: 'Exact-match TLDs',
+  developed_tlds: 'Developed TLDs',
+  referring_domains: 'Referring domains',
+  backlinks: 'Backlinks',
+  traffic: 'Traffic',
+  semrush_backlinks: 'Semrush backlinks',
+  semrush_referring_domains: 'Semrush ref. domains',
+  semrush_authority_score: 'Semrush authority',
+  semrush_search_volume: 'Semrush search volume',
+  semrush_cpc: 'Semrush CPC',
+  semrush_indexed_pages: 'Semrush indexed pages',
+  majestic_backlinks: 'Majestic backlinks',
+  majestic_referring_domains: 'Majestic ref. domains',
+  majestic_citation_flow: 'Majestic citation flow',
+  majestic_trust_flow: 'Majestic trust flow',
+  majestics_topics: 'Majestic topics',
+  majestic_topics: 'Majestic topics',
+  top_referring_domains: 'Top referring domains',
+  spamzilla_score: 'SpamZilla score',
+  archive_birth_year: 'Archive birth year',
+  archive_captures: 'Archive captures',
+  drop_date: 'Drop date',
+  drop_count: 'Drop count'
+};
+const DETAIL_SERIES_LABELS = {
+  refdomains: 'Referring domains',
+  organic_traffic: 'Organic traffic',
+  organic_keywords: 'Organic keywords'
+};
+
+function detailInt(value) {
+  if (value == null || value === '') return '—';
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? number.toLocaleString(undefined, { maximumFractionDigits: 2 })
+    : esc(value);
+}
+
+function detailValue(value) {
+  if (value == null) return '<span class="none">—</span>';
+  if (Array.isArray(value)) {
+    return value.length ? esc(value.join(', ')) : '<span class="none">—</span>';
+  }
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'number') {
+    return esc(value.toLocaleString(undefined, { maximumFractionDigits: 2 }));
+  }
+  if (typeof value === 'object') return `<code>${esc(JSON.stringify(value))}</code>`;
+  return esc(value);
+}
+
+function detailDateTime(value) {
+  if (!value) return '<span class="none">—</span>';
+  return esc(String(value)
+    .replace('T', ' ')
+    .replace(/(\.\d+)?\+00:00$/, ' UTC')
+    .replace(/Z$/, ' UTC'));
+}
+
+function safeHref(value) {
+  const text = String(value || '');
+  return /^https?:\/\//i.test(text) ? text : '';
+}
+
+function detailLabel(key) {
+  return DETAIL_METRIC_LABELS[key]
+    || key.replace(/_/g, ' ').replace(/\b\w/g, character => character.toUpperCase());
+}
+
+function detailSection(title, body, sub) {
+  return `<section class="dsec"><h3>${esc(title)}`
+    + (sub ? `<span class="sub">${esc(sub)}</span>` : '')
+    + `</h3>${body}</section>`;
+}
+
+function detailKpi(label, value, hint) {
+  return `<div class="kpi"><span>${esc(label)}</span><b class="num">${value}</b>`
+    + (hint ? `<small>${esc(hint)}</small>` : '') + '</div>';
+}
+
+function detailPill(text, kind) {
+  return `<span class="dpill${kind ? ' ' + kind : ''}">${esc(text)}</span>`;
+}
+
+function detailFold(title, body, sub, open) {
+  return `<details class="dfold"${open ? ' open' : ''}>`
+    + `<summary><span class="dfold-title">${esc(title)}</span>`
+    + (sub ? `<span class="sub">${esc(sub)}</span>` : '')
+    + '</summary>'
+    + `<div class="dfold-body">${body}</div></details>`;
+}
+
+function detailStat(label, value, hint, kind) {
+  return `<div class="dstat"><span>${esc(label)}</span>`
+    + `<b${kind ? ` class="${kind}"` : ''}>${esc(value == null || value === '' ? '—' : value)}</b>`
+    + (hint ? `<small>${esc(hint)}</small>` : '') + '</div>';
+}
+
+function detailMeter(label, value, maximum, kind) {
+  const number = Number(value);
+  const percent = Number.isFinite(number) && maximum > 0
+    ? Math.max(0, Math.min(100, number / maximum * 100))
+    : 0;
+  return `<div class="dmeter">`
+    + `<div class="dmeter-head"><span>${esc(label)}</span>`
+    + `<b class="num">${detailInt(value)}${maximum > 0 ? ` / ${detailInt(maximum)}` : ''}</b></div>`
+    + `<div class="dmeter-track" role="img" aria-label="${esc(label)} ${Math.round(percent)} percent">`
+    + `<span class="dmeter-fill${kind ? ' ' + kind : ''}" style="width:${percent.toFixed(1)}%"></span>`
+    + `</div></div>`;
+}
+
+function detailBadges(row) {
+  const collection = row.collection || {};
+  const statusLabel = collection.status === 'collected'
+    ? 'Collected'
+    : collection.status === 'failed' ? 'Failed' : 'Queued';
+  const statusKind = collection.status === 'collected'
+    ? 'ok' : collection.status === 'failed' ? 'bad' : 'warn';
+  const pills = [
+    detailPill(statusLabel, statusKind),
+    detailPill(row.source_label),
+    detailPill(row.niche_label)
+  ];
+  if (row.niche_source) pills.push(detailPill(row.niche_source));
+  if (collection.eligible === false) pills.push(detailPill('Not eligible', 'warn'));
+  if (row.blocked) pills.push(detailPill('Blocked', 'bad'));
+  return pills.join('');
+}
+
+function detailStats(row) {
+  const collection = row.collection || {};
+  const evaluation = row.evaluation;
+  const dr = row.dr_check;
+  const live = row.live_check;
+  const wayback = row.wayback_check;
+  const stats = [];
+
+  if (evaluation && evaluation.verdict) {
+    const kind = evaluation.verdict === 'Reject'
+      ? 'bad' : evaluation.verdict === 'Maybe' ? 'warn' : 'ok';
+    stats.push(detailStat(
+      'Evaluation',
+      evaluation.verdict,
+      evaluation.score == null ? '' : `Score ${detailInt(evaluation.score)}`,
+      kind
+    ));
+  } else {
+    stats.push(detailStat('Evaluation', 'Not evaluated', 'Waiting for purchase review'));
+  }
+
+  if (collection.status === 'collected') {
+    const bits = [
+      bidEndText(collection.fetched_at),
+      collection.units ? `${Number(collection.units).toLocaleString()} units` : ''
+    ].filter(Boolean);
+    stats.push(detailStat('Collection', 'Collected', bits.join(' · '), 'ok'));
+  } else if (collection.status === 'failed') {
+    stats.push(detailStat('Collection', 'Failed', 'Ahrefs run failed', 'bad'));
+  } else {
+    stats.push(detailStat('Collection', 'Queued', 'Waiting for Ahrefs'));
+  }
+
+  if (dr && dr.rating != null) {
+    stats.push(detailStat(
+      'Domain rating',
+      `DR ${detailInt(dr.rating)}`,
+      dr.status === 'processing' ? 'Processing' : '',
+      dr.passed ? 'ok' : dr.passed === false ? 'bad' : ''
+    ));
+  } else {
+    stats.push(detailStat(
+      'Domain rating',
+      '—',
+      dr && dr.status === 'processing' ? 'Processing' : 'Not checked'
+    ));
+  }
+
+  if (live) {
+    const kind = live.status === 'processing'
+      ? 'warn' : live.passed ? 'ok' : live.passed === false ? 'bad' : '';
+    stats.push(detailStat(
+      'Live check',
+      live.status === 'processing' ? 'Processing' : live.passed ? 'Passed' : 'Failed',
+      live.class || live.final_host || '',
+      kind
+    ));
+  } else {
+    stats.push(detailStat('Live check', 'Not run'));
+  }
+
+  if (wayback) {
+    const kind = wayback.status === 'processing'
+      ? 'warn' : wayback.passed ? 'ok' : wayback.passed === false ? 'bad' : '';
+    const bits = [
+      wayback.score == null ? '' : `${detailInt(wayback.score)}%`,
+      wayback.age_years == null ? '' : `${detailInt(wayback.age_years)} yrs`
+    ].filter(Boolean);
+    stats.push(detailStat(
+      'Wayback',
+      wayback.status === 'processing' ? 'Processing' : wayback.passed ? 'Passed' : 'Failed',
+      bits.join(' · '),
+      kind
+    ));
+  } else {
+    stats.push(detailStat('Wayback', 'Not run'));
+  }
+
+  stats.push(detailStat(
+    'Marketplace',
+    row.price == null ? '—' : '$' + Number(row.price).toLocaleString(
+      undefined, { maximumFractionDigits: 2 }
+    ),
+    row.bid_end_at
+      ? `Bid ends ${bidEndText(row.bid_end_at)}`
+      : row.price == null ? 'No listing price' : row.source_label
+  ));
+  return `<div class="dstats">${stats.join('')}</div>`;
+}
+
+function detailPipeline(row) {
+  const collection = row.collection || {};
+  const rows = [];
+  const add = (label, status, value, reason) => {
+    rows.push(`<div class="dpipe-row ${status}">`
+      + '<span class="dpipe-dot" aria-hidden="true"></span>'
+      + `<span class="dpipe-label">${esc(label)}</span>`
+      + `<span class="dpipe-value">${esc(value)}</span>`
+      + (reason ? `<p class="dpipe-reason">${esc(reason)}</p>` : '')
+      + '</div>');
+  };
+
+  const prefilter = row.prefilter;
+  add(
+    'Pre-filter',
+    prefilter ? (prefilter.pass ? 'pass' : 'fail') : 'muted',
+    prefilter ? (prefilter.pass ? 'Passed' : 'Failed') : 'Not run',
+    prefilter ? prefilter.reason : ''
+  );
+
+  const keyword = row.keyword_check;
+  if (keyword) {
+    const processing = keyword.status === 'processing';
+    const state = processing ? 'Processing' : keyword.reusable ? 'Passed' : 'Failed';
+    const confidence = !processing && keyword.confidence != null
+      ? ` · ${Math.round(Number(keyword.confidence) * 100)}%` : '';
+    add(
+      'Keyword check',
+      processing ? 'warn' : keyword.reusable ? 'pass' : 'fail',
+      state + confidence,
+      keyword.reason
+    );
+  } else {
+    add('Keyword check', 'muted', 'Not run', '');
+  }
+
+  const dr = row.dr_check;
+  if (dr) {
+    const processing = dr.status === 'processing';
+    const state = processing ? 'Processing' : dr.passed ? 'Passed' : 'Failed';
+    const rating = !processing && dr.rating != null ? ` · DR ${detailInt(dr.rating)}` : '';
+    add(
+      'Free DR check',
+      processing ? 'warn' : dr.passed ? 'pass' : 'fail',
+      state + rating,
+      dr.reason
+    );
+  } else {
+    add('Free DR check', 'muted', 'Not run', '');
+  }
+
+  const live = row.live_check;
+  if (live) {
+    const processing = live.status === 'processing';
+    const state = processing ? 'Processing' : live.passed ? 'Passed' : 'Failed';
+    const klass = !processing && live.class ? ` · ${live.class}` : '';
+    add(
+      'Live check',
+      processing ? 'warn' : live.passed ? 'pass' : 'fail',
+      state + klass,
+      live.reason
+    );
+  } else {
+    add('Live check', 'muted', 'Not run', '');
+  }
+
+  const wayback = row.wayback_check;
+  if (wayback) {
+    const processing = wayback.status === 'processing';
+    const state = processing ? 'Processing' : wayback.passed ? 'Passed' : 'Failed';
+    const score = !processing && wayback.score != null ? ` · ${detailInt(wayback.score)}%` : '';
+    add(
+      'Wayback Machine Checks',
+      processing ? 'warn' : wayback.passed ? 'pass' : 'fail',
+      state + score,
+      wayback.reason
+    );
+  } else {
+    add('Wayback Machine Checks', 'muted', 'Not run', '');
+  }
+
+  add(
+    'Data collection',
+    collection.status === 'collected' ? 'pass'
+      : collection.status === 'failed' ? 'fail' : 'warn',
+    collection.status === 'collected' ? 'Collected'
+      : collection.status === 'failed' ? 'Failed' : 'Queued',
+    collection.error || ''
+  );
+
+  const evaluation = row.evaluation;
+  if (evaluation && evaluation.verdict) {
+    add(
+      'Purchase evaluation',
+      evaluation.verdict === 'Reject' ? 'fail'
+        : evaluation.verdict === 'Maybe' ? 'warn' : 'pass',
+      evaluation.verdict + (evaluation.score == null ? '' : ` · ${detailInt(evaluation.score)}`),
+      ''
+    );
+  } else {
+    add('Purchase evaluation', 'muted', 'Not run', '');
+  }
+  return `<div class="dpipe">${rows.join('')}</div>`;
+}
+
+function renderHistorySeries(series) {
+  const points = (series.points || [])
+    .filter(point => point.value != null && Number.isFinite(Number(point.value)))
+    .map(point => ({ date: String(point.date || ''), value: Number(point.value) }));
+  if (!points.length) return '';
+  const label = DETAIL_SERIES_LABELS[series.series]
+    || series.series.replace(/_/g, ' ').replace(/\b\w/g, character => character.toUpperCase());
+  const width = 720;
+  const height = 150;
+  const pad = 10;
+  const values = points.map(point => point.value);
+  const peak = Math.max(...values);
+  if (!peak) {
+    return `<div class="dseries"><h4>${esc(label)}</h4>`
+      + `<p class="dnote">No ${esc(label.toLowerCase())} recorded in the stored history.</p></div>`;
+  }
+  const maximum = Math.max(peak, 1);
+  const minimum = Math.min(...values, 0);
+  const span = maximum - minimum || 1;
+  const x = index => points.length === 1
+    ? width / 2
+    : pad + (width - 2 * pad) * index / (points.length - 1);
+  const y = value => height - pad - (height - 2 * pad) * (value - minimum) / span;
+  const line = points
+    .map((point, index) => `${index ? 'L' : 'M'}${x(index).toFixed(1)} ${y(point.value).toFixed(1)}`)
+    .join(' ');
+  const area = `${line} L${x(points.length - 1).toFixed(1)} ${height - pad} `
+    + `L${x(0).toFixed(1)} ${height - pad} Z`;
+  const markers = points.length <= 60
+    ? points.map((point, index) =>
+      `<circle cx="${x(index).toFixed(1)}" cy="${y(point.value).toFixed(1)}" r="2.2"></circle>`
+    ).join('')
+    : '';
+  const rows = points.map(point =>
+    `<tr><td class="num">${esc(point.date)}</td><td class="num">${detailInt(point.value)}</td></tr>`
+  ).join('');
+  return `<div class="dseries"><h4>${esc(label)}</h4>`
+    + `<p class="chart-cap">Latest <b class="num">${detailInt(points[points.length - 1].value)}</b>`
+    + ` · Peak <b class="num">${detailInt(peak)}</b></p>`
+    + `<figure class="chart"><svg viewBox="0 0 ${width} ${height}" role="img" `
+    + `aria-label="${esc(label)} history"><path class="area" d="${area}"/>`
+    + `<path class="line" d="${line}"/>${markers}</svg>`
+    + `<div class="chart-x"><span>${esc(points[0].date)}</span>`
+    + `<span>${esc(points[points.length - 1].date)}</span></div></figure>`
+    + `<details class="dvalues"><summary>Monthly values (${points.length})</summary>`
+    + `<div class="dscroll"><table class="dgrid"><thead><tr><th>Month</th><th>Value</th></tr></thead>`
+    + `<tbody>${rows}</tbody></table></div></details></div>`;
+}
+
+function renderAnchorTable(anchors) {
+  const rows = anchors.map(anchor => {
+    const anchorText = anchor.anchor
+      ? `<span class="clamp" title="${esc(anchor.anchor)}">${esc(anchor.anchor)}</span>`
+      : '<span class="none">—</span>';
+    const categories = (anchor.categories || []).length
+      ? esc(anchor.categories.join(', '))
+      : '<span class="none">—</span>';
+    return `<tr><td>${anchorText}</td>`
+      + `<td class="num">${detailInt(anchor.links)}</td>`
+      + `<td class="num">${detailInt(anchor.dofollow)}</td>`
+      + `<td class="num">${detailInt(anchor.refdomains)}</td>`
+      + `<td>${categories}</td></tr>`;
+  }).join('');
+  return `<div class="dscroll"><table class="dgrid"><thead><tr>`
+    + `<th>Anchor</th><th>Links</th><th>Dofollow</th><th>Ref. domains</th><th>Categories</th>`
+    + `</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderBacklinkTable(backlinks) {
+  const rows = (backlinks.items || []).map(item => {
+    const domain = item.domain_from || item.root_domain_from || '';
+    const href = safeHref(item.url_from);
+    const source = href
+      ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(domain)}</a>`
+      : esc(domain);
+    const anchor = item.anchor
+      ? `<span class="clamp" title="${esc(item.anchor)}">${esc(item.anchor)}</span>`
+      : '<span class="none">—</span>';
+    const dofollow = item.dofollow == null ? '—' : item.dofollow ? 'Yes' : 'No';
+    return `<tr><td>${source || '<span class="none">—</span>'}</td>`
+      + `<td class="num">${detailInt(item.domain_rating)}</td>`
+      + `<td>${dofollow}</td>`
+      + `<td>${anchor}</td>`
+      + `<td class="num mute">${formatBidEnd(item.first_seen)}</td></tr>`;
+  }).join('');
+  return `<div class="dscroll"><table class="dgrid"><thead><tr>`
+    + `<th>Source</th><th>DR</th><th>Dofollow</th><th>Anchor</th><th>First seen</th>`
+    + `</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderRequestTable(requests) {
+  const rows = requests.map(request => {
+    const status = request.status == null ? '—' : String(request.status);
+    const kind = request.error || (request.status != null && request.status >= 400)
+      ? 'bad'
+      : (request.status != null && request.status >= 200 && request.status < 300 ? 'ok' : '');
+    return `<tr><td><span class="num">${esc(request.query_id)}</span>`
+      + `<div class="mute">${esc(request.endpoint)}</div></td>`
+      + `<td class="num">${detailInt(request.row_count)}</td>`
+      + `<td class="num">${detailInt(request.units)}</td>`
+      + `<td><span class="dpill ${kind}">${esc(status)}</span>`
+      + (request.error ? `<div class="mute">${esc(request.error)}</div>` : '')
+      + `</td></tr>`;
+  }).join('');
+  return `<div class="dscroll"><table class="dgrid"><thead><tr>`
+    + `<th>Request</th><th>Rows</th><th>Units</th><th>Status</th>`
+    + `</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function buildDetailHtml(row, detail) {
+  const collection = row.collection || {};
+  const run = detail ? detail.run : null;
+  const observation = detail ? detail.observation : null;
+  const stats = (detail && detail.stats) || {};
+  const live = stats.live || {};
+  const allTime = stats.all_time || {};
+  const backlinks = (detail && detail.backlinks) || { items: [] };
+  const histories = (detail && detail.history) || [];
+  const anchors = (detail && detail.anchors) || [];
+  const requests = (detail && detail.requests) || [];
+  const metrics = (observation && observation.metrics) || {};
+  const coverage = (run && run.coverage) || {};
+  const coverageRows = coverage.rows || {};
+  const blocks = [];
+
+  blocks.push(detailStats(row));
+
+  const evaluation = row.evaluation;
+  if (evaluation) {
+    const verdict = evaluation.verdict || 'Pending';
+    const verdictClass = verdict === 'Buy' ? 'oc pass'
+      : verdict === 'Reject' ? 'oc fail'
+        : verdict === 'Maybe' ? 'oc' : 'tag';
+    const meterKind = verdict === 'Buy' ? 'ok'
+      : verdict === 'Reject' ? 'bad'
+        : verdict === 'Maybe' ? 'warn' : '';
+    blocks.push(detailSection(
+      'Purchase evaluation',
+      `<div class="kpis">`
+        + detailKpi(
+          'Verdict',
+          `<span class="${verdictClass}">${esc(verdict)}</span>`,
+          evaluation.recommendation ? `Recommendation: ${evaluation.recommendation}` : ''
+        )
+        + detailKpi('Score', detailInt(evaluation.score), 'out of 100')
+        + detailKpi('Evidence points', detailInt(evaluation.evidence_points), 'out of 90')
+        + `</div>`
+        + `<div class="dmeters">`
+        + detailMeter('Score', evaluation.score, 100, meterKind)
+        + detailMeter('Evidence points', evaluation.evidence_points, 90, meterKind)
+        + `</div>`
+        + (evaluation.reason ? `<p class="dlead dstack">${esc(evaluation.reason)}</p>` : '')
+        + `<dl class="dmeta dstack">`
+        + `<div><dt>Recommendation</dt><dd>${esc(evaluation.recommendation || '—')}</dd></div>`
+        + `<div><dt>Status</dt><dd>${esc(evaluation.status || '—')}</dd></div>`
+        + `<div><dt>Config</dt><dd>${esc(evaluation.config_version || '—')}</dd></div>`
+        + `<div><dt>Checked at</dt><dd>${formatBidEnd(evaluation.checked_at)}</dd></div>`
+        + `</dl>`
+    ));
+  }
+
+  blocks.push(detailSection('Pipeline verdicts', detailPipeline(row)));
+
+  const liveDetail = detail && detail.live ? detail.live : null;
+  if (liveDetail) {
+    const dns = liveDetail.dns || {};
+    const redirects = liveDetail.redirects || [];
+    const redirectRows = redirects.map((item, index) =>
+      `<tr><td class="num">${index + 1}</td>`
+      + `<td>${esc(item.url || '')}</td>`
+      + `<td class="num">${detailInt(item.status)}</td>`
+      + `<td>${esc(item.location || '') || '—'}</td></tr>`
+    ).join('');
+    const redirectTable = redirects.length
+      ? `<div class="dscroll"><table class="dgrid"><thead><tr><th>#</th><th>URL</th><th>Status</th><th>Location</th></tr></thead><tbody>${redirectRows}</tbody></table></div>`
+      : '<p class="dnote">No redirects followed.</p>';
+    const addresses = (dns.addresses || []).join(', ');
+    const liveSub = [
+      liveDetail.status === 'passed' ? 'Passed' : 'Failed',
+      liveDetail.class || '',
+      liveDetail.final_host || ''
+    ].filter(Boolean).join(' · ');
+    blocks.push(detailFold(
+      'Live check',
+      `<div class="kpis">`
+        + detailKpi('HTTP status', detailInt(liveDetail.http_status))
+        + detailKpi('Final host', esc(liveDetail.final_host || '—'))
+        + detailKpi('Attempts', detailInt(liveDetail.attempts))
+        + detailKpi('DNS', dns.ok ? 'Resolved' : (dns.nxdomain ? 'NXDOMAIN' : 'Failed'))
+        + `</div>`
+        + `<div class="dpills">`
+        + detailPill(liveDetail.status === 'passed' ? 'Passed' : 'Failed', liveDetail.status === 'passed' ? 'ok' : 'bad')
+        + detailPill(liveDetail.class || 'unclassified')
+        + (liveDetail.manual ? detailPill('Manual pass', 'warn') : '')
+        + (liveDetail.neutral ? detailPill('Neutral', 'warn') : '')
+        + (liveDetail.config_version ? detailPill(liveDetail.config_version) : '')
+        + `</div>`
+        + `<p class="dnote ${liveDetail.status === 'passed' ? '' : 'bad'}">${esc(liveDetail.reason || '')}</p>`
+        + (addresses ? `<p class="dnote">A/AAAA: ${esc(addresses)}</p>` : '')
+        + (dns.error ? `<p class="dnote bad">DNS: ${esc(dns.error)}</p>` : '')
+        + (liveDetail.title ? `<p class="dnote">Title: ${esc(liveDetail.title)}</p>` : '')
+        + (liveDetail.excerpt ? `<p class="dnote">${esc(liveDetail.excerpt)}</p>` : '')
+        + ((liveDetail.toxic_terms || []).length
+          ? `<p class="dnote bad">Toxic terms: ${esc((liveDetail.toxic_terms || []).join(', '))}</p>`
+          : '')
+        + redirectTable,
+      liveSub
+    ));
+  }
+
+  const waybackDetail = detail && detail.wayback ? detail.wayback : null;
+  if (waybackDetail) {
+    const checks = waybackDetail.checks || [];
+    const snapshots = waybackDetail.snapshots || [];
+    const checkRows = checks.map(check =>
+      `<tr><td>${esc(check.label || check.check || '')}</td>`
+      + `<td><span class="dpill ${check.result === 'pass' ? 'ok' : check.result === 'fail' ? 'bad' : 'warn'}">${esc(check.result || '')}</span></td>`
+      + `<td class="num">${detailInt(check.weight)}</td>`
+      + `<td>${esc(check.evaluated_by || '')}</td>`
+      + `<td>${esc(check.reason || '')}</td></tr>`
+    ).join('');
+    const snapshotRows = snapshots.map(snapshot =>
+      `<tr><td class="num">${formatBidEnd(snapshot.timestamp)}</td>`
+      + `<td>${esc(snapshot.title || '')}</td>`
+      + `<td>${esc(snapshot.language || '')}</td>`
+      + `<td class="num">${detailInt(snapshot.word_count)}</td>`
+      + `<td>${snapshot.parking ? 'Parked' : snapshot.substantive ? 'Substantive' : 'Thin'}</td>`
+      + `<td>${esc((snapshot.toxic_terms || []).join(', ')) || '—'}</td></tr>`
+    ).join('');
+    const checksTable = checks.length
+      ? `<div class="dscroll"><table class="dgrid"><thead><tr><th>Check</th><th>Result</th><th>Weight</th><th>Decided by</th><th>Reason</th></tr></thead><tbody>${checkRows}</tbody></table></div>`
+      : '<p class="dnote">No check details stored.</p>';
+    const snapshotsTable = snapshots.length
+      ? `<div class="dscroll"><table class="dgrid"><thead><tr><th>Capture</th><th>Title</th><th>Language</th><th>Words</th><th>Class</th><th>Toxic terms</th></tr></thead><tbody>${snapshotRows}</tbody></table></div>`
+      : '<p class="dnote">No snapshots stored.</p>';
+    const waybackSub = [
+      waybackDetail.status === 'passed' ? 'Passed' : 'Failed',
+      waybackDetail.score == null ? '' : `${detailInt(waybackDetail.score)}%`,
+      waybackDetail.age_years == null ? '' : `${detailInt(waybackDetail.age_years)} yrs`
+    ].filter(Boolean).join(' · ');
+    blocks.push(detailFold(
+      'Wayback Machine Checks',
+      `<div class="kpis">`
+        + detailKpi('Score', `${detailInt(waybackDetail.score)}/100`)
+        + detailKpi('Captures', detailInt(waybackDetail.capture_count))
+        + detailKpi('Archive age', waybackDetail.age_years == null ? '—' : `${detailInt(waybackDetail.age_years)} yrs`)
+        + detailKpi('First capture', formatBidEnd(waybackDetail.first_capture))
+        + detailKpi('Last capture', formatBidEnd(waybackDetail.last_capture))
+        + `</div>`
+        + `<div class="dpills">`
+        + detailPill(waybackDetail.status === 'passed' ? 'Passed' : 'Failed', waybackDetail.status === 'passed' ? 'ok' : 'bad')
+        + detailPill(`Decided by ${waybackDetail.source || 'unknown'}`)
+        + (waybackDetail.llm ? detailPill('LLM used', 'warn') : '')
+        + `</div>`
+        + `<p class="dnote ${waybackDetail.status === 'passed' ? '' : 'bad'}">${esc(waybackDetail.reason || '')}</p>`
+        + checksTable
+        + snapshotsTable,
+      waybackSub
+    ));
+  }
+
+  if (run) {
+    const runPills = [
+      detailPill(run.tier || 'standard'),
+      detailPill(run.mode || 'domain'),
+      detailPill(`run ${run.run_id}`)
+    ];
+    if (coverage.mode) runPills.push(detailPill(`coverage ${coverage.mode}`));
+    if (coverageRows.unique != null) runPills.push(detailPill(`${coverageRows.unique} unique rows`));
+    if (coverage.top_anchors != null) runPills.push(detailPill(`${coverage.top_anchors} anchors`));
+    if (coverage.lexicon_complete != null) {
+      runPills.push(detailPill(`lexicon ${coverage.lexicon_complete ? 'complete' : 'truncated'}`));
+    }
+    if (coverage.history_months != null) {
+      runPills.push(detailPill(`${coverage.history_months} months history`));
+    }
+    const collectionSub = [
+      bidEndText(run.fetched_at),
+      `${detailInt(run.units ?? collection.units)} units`
+    ].filter(Boolean).join(' · ');
+    blocks.push(detailFold(
+      'Collection run',
+      `<div class="kpis">`
+        + detailKpi('Live links', detailInt(live.links ?? collection.live_links))
+        + detailKpi('All-time links', detailInt(allTime.links ?? collection.all_time_links))
+        + detailKpi('Live ref. domains', detailInt(live.refdomains ?? collection.live_refdomains))
+        + detailKpi('All-time ref. domains', detailInt(allTime.refdomains ?? collection.all_time_refdomains))
+        + detailKpi('Units spent', detailInt(run.units ?? collection.units))
+        + detailKpi('Requests', `${detailInt(run.requests_ok)}/${detailInt(run.requests_total)}`)
+        + `</div>`
+        + `<div class="dpills">${runPills.join('')}</div>`
+        + `<dl class="dmeta">`
+        + `<div><dt>Fetched</dt><dd>${detailDateTime(run.fetched_at)}</dd></div>`
+        + `<div><dt>Run ID</dt><dd><span class="num">${esc(run.run_id)}</span></dd></div>`
+        + `</dl>`
+        + (run.error ? `<p class="dnote bad">${esc(run.error)}</p>` : ''),
+      collectionSub,
+      true
+    ));
+  } else {
+    blocks.push(detailSection(
+      'Collection run',
+      `<p class="dnote${collection.status === 'failed' ? ' bad' : ''}">${collection.status === 'queued'
+        ? 'This domain is queued for Ahrefs collection. No paid run is stored yet.'
+        : 'No Ahrefs run is stored for this domain yet.'}</p>`
+    ));
+  }
+
+  if (histories.length) {
+    blocks.push(detailFold(
+      'Historical series',
+      histories.map(renderHistorySeries).join(''),
+      `${histories.length.toLocaleString()} series`
+    ));
+  }
+
+  if (anchors.length) {
+    blocks.push(detailFold(
+      'Top anchors',
+      renderAnchorTable(anchors),
+      `${anchors.length.toLocaleString()} anchor${anchors.length === 1 ? '' : 's'}`
+    ));
+  }
+
+  if (backlinks.total) {
+    const summary = `<div class="kpis">`
+      + detailKpi('Backlinks stored', detailInt(backlinks.total))
+      + detailKpi('Dofollow', detailInt(backlinks.dofollow))
+      + detailKpi('Nofollow', detailInt(backlinks.nofollow))
+      + detailKpi('Root domains', detailInt(backlinks.unique_root_domains))
+      + detailKpi('Max DR', detailInt(backlinks.max_domain_rating))
+      + detailKpi('Average DR', detailInt(backlinks.average_domain_rating))
+      + `</div>`;
+    blocks.push(detailFold(
+      'Backlinks',
+      summary + renderBacklinkTable(backlinks),
+      `${(backlinks.items || []).length.toLocaleString()} of ${backlinks.total.toLocaleString()} shown`
+    ));
+  }
+
+  if (requests.length) {
+    blocks.push(detailFold(
+      'Request audit',
+      renderRequestTable(requests),
+      `${requests.length.toLocaleString()} request${requests.length === 1 ? '' : 's'}`
+    ));
+  }
+
+  const metricEntries = Object.entries(metrics)
+    .filter(([, value]) => value != null && !(Array.isArray(value) && value.length === 0))
+    .sort(([left], [right]) => detailLabel(left).localeCompare(detailLabel(right)));
+  if (metricEntries.length) {
+    blocks.push(detailFold(
+      'Marketplace observation',
+      `<dl class="dmeta">${metricEntries.map(([key, value]) =>
+        `<div><dt>${esc(detailLabel(key))}</dt><dd>${detailValue(value)}</dd></div>`
+      ).join('')}</dl>`,
+      observation && observation.source ? observation.source : ''
+    ));
+  }
+
+  if (!detail) {
+    blocks.push(
+      `<p class="dnote">No Ahrefs evidence is stored for this domain yet. `
+      + `The summary above still shows the current pipeline state.</p>`
+    );
+  }
+  return blocks.join('');
+}
+
+const detailDialog = document.getElementById('detail');
+const detailBody = document.getElementById('detail-body');
+const detailTitle = document.getElementById('detail-title');
+
+function openDomainDetail(domain) {
+  const row = ROWS.find(item => item.domain === domain);
+  if (!row || !detailDialog) return;
+  detailTitle.textContent = domain;
+  const badges = document.getElementById('detail-badges');
+  if (badges) badges.innerHTML = detailBadges(row);
+  detailBody.innerHTML = buildDetailHtml(row, DETAILS[domain] || null);
+  if (!detailDialog.open) detailDialog.showModal();
+  detailBody.scrollTop = 0;
+  document.getElementById('detail-close').focus();
+}
+
+function closeDomainDetail() {
+  if (detailDialog && detailDialog.open) detailDialog.close();
+}
+
+function sourceCount(slug) {
+  if (slug === 'blocked') {
+    return ROWS.filter(row => row.blocked).length;
+  }
+  return ROWS.filter(row =>
+    !row.blocked && nicheMatch(row) && (slug === 'all' || row.source === slug)
+  ).length;
+}
+
+function prefilterRows() {
+  return ROWS.filter(row => !row.blocked && row.prefilter && row.prefilter.pass);
+}
+
+function nicheTag(row) {
+  const blocked = !!row.blocked;
+  const unknown = !blocked && (row.niche === 'pending' || row.niche === 'llm - unknown');
+  const title = blocked && row.blocked_terms && row.blocked_terms.length
+    ? ` title="Matched: ${esc(row.blocked_terms.join(', '))}"`
+    : '';
+  return `<span class="tag${unknown ? ' todo' : ''}${blocked ? ' blocked' : ''}"${title}>${esc(row.niche_label)}</span>`;
+}
+
+function importTip(item) {
+  return item.last_import
+    ? `Last data import: ${item.last_import}`
+    : 'Last data import: not recorded';
+}
+
+function renderSidebar() {
+  const items = [
+    {slug: 'all', label: 'All discovered', icon: 'ALL'},
+    ...META.sources,
+    {slug: 'blocked', label: 'Blocked', icon: 'BL'}
+  ];
+  document.getElementById('source-views').innerHTML = items.map(item => {
+    const info = item.slug === 'all' || item.slug === 'blocked'
+      ? ''
+      : `<span class="info" title="${esc(importTip(item))}" aria-hidden="true">i</span>`;
+    return `<li><button type="button" data-view="${esc(item.slug)}" aria-current="${st.view === item.slug}">`
+      + `<span class="srcname">${info}${esc(item.label)}</span>`
+      + `<span class="n">${sourceCount(item.slug).toLocaleString()}</span></button></li>`;
+  }).join('');
+}
+
+function renderPipeline() {
+  const prefilterPassed = prefilterRows().length;
+  const button = document.querySelector('#pipeline-views [data-view="prefilter"]');
+  if (button) {
+    button.setAttribute('aria-current', String(st.view === PREFILTER_SLUG));
+    const count = button.querySelector('.n');
+    if (count) count.textContent = prefilterPassed.toLocaleString();
+  }
+  const prefilterQueue = Number((META.prefilter || {}).queue || 0);
+  const prefilterLive = document.getElementById('prefilter-live');
+  if (prefilterLive) {
+    prefilterLive.hidden = prefilterQueue === 0;
+    prefilterLive.classList.toggle('on', prefilterQueue > 0);
+    prefilterLive.title = `${prefilterQueue.toLocaleString()} waiting for prefilter`;
+  }
+
+  const keywordPassed = Number((META.keyword_check || {}).reusable || 0);
+  const keywordButton = document.querySelector('#pipeline-views [data-view="keyword-check"]');
+  if (keywordButton) {
+    keywordButton.setAttribute('aria-current', String(st.view === KEYWORD_SLUG));
+    const count = keywordButton.querySelector('.n');
+    if (count) count.textContent = keywordPassed.toLocaleString();
+  }
+  const processing = Number((META.keyword_check || {}).processing || 0);
+  const queued = Number((META.keyword_check || {}).pending || 0);
+  const keywordLive = document.getElementById('keyword-live');
+  if (keywordLive) {
+    keywordLive.hidden = processing + queued === 0;
+    keywordLive.classList.toggle('on', processing > 0);
+    keywordLive.title = `${processing.toLocaleString()} processing · ${queued.toLocaleString()} queued`;
+  }
+
+  const dr = META.dr_check || {};
+  const drPassed = Number(dr.passed || 0);
+  const drButton = document.querySelector('#pipeline-views [data-view="dr-check"]');
+  if (drButton) {
+    drButton.setAttribute('aria-current', String(st.view === DR_SLUG));
+    const count = drButton.querySelector('.n');
+    if (count) count.textContent = drPassed.toLocaleString();
+  }
+  const drProcessing = Number(dr.processing || 0);
+  const drQueued = Number(dr.pending || 0);
+  const drLive = document.getElementById('dr-live');
+  if (drLive) {
+    drLive.hidden = drProcessing + drQueued === 0;
+    drLive.classList.toggle('on', drProcessing > 0);
+    drLive.title = `${drProcessing.toLocaleString()} processing · ${drQueued.toLocaleString()} queued`;
+  }
+
+  const live = META.live_check || {};
+  const livePassed = Number(live.passed || 0);
+  const liveButton = document.querySelector('#pipeline-views [data-view="live-check"]');
+  if (liveButton) {
+    liveButton.setAttribute('aria-current', String(st.view === LIVE_SLUG));
+    const count = liveButton.querySelector('.n');
+    if (count) count.textContent = livePassed.toLocaleString();
+  }
+  const liveProcessing = Number(live.processing || 0);
+  const liveQueued = Number(live.pending || 0);
+  const liveLive = document.getElementById('live-live');
+  if (liveLive) {
+    liveLive.hidden = liveProcessing + liveQueued === 0;
+    liveLive.classList.toggle('on', liveProcessing > 0);
+    liveLive.title = `${liveProcessing.toLocaleString()} processing · ${liveQueued.toLocaleString()} queued`;
+  }
+
+  const wayback = META.wayback_check || {};
+  const waybackPassed = Number(wayback.passed || 0);
+  const waybackButton = document.querySelector('#pipeline-views [data-view="wayback-check"]');
+  if (waybackButton) {
+    waybackButton.setAttribute('aria-current', String(st.view === WAYBACK_SLUG));
+    const count = waybackButton.querySelector('.n');
+    if (count) count.textContent = waybackPassed.toLocaleString();
+  }
+  const waybackProcessing = Number(wayback.processing || 0);
+  const waybackQueued = Number(wayback.pending || 0);
+  const waybackLive = document.getElementById('wayback-live');
+  if (waybackLive) {
+    waybackLive.hidden = waybackProcessing + waybackQueued === 0;
+    waybackLive.classList.toggle('on', waybackProcessing > 0);
+    waybackLive.title = `${waybackProcessing.toLocaleString()} processing · ${waybackQueued.toLocaleString()} queued`;
+  }
+
+  const collection = META.data_collection || {};
+  const collectionButton = document.querySelector('#pipeline-views [data-view="data-collection"]');
+  if (collectionButton) {
+    collectionButton.setAttribute('aria-current', String(st.view === COLLECTION_SLUG));
+    const count = collectionButton.querySelector('.n');
+    if (count) count.textContent = Number(collection.collected || 0).toLocaleString();
+  }
+  const collectionQueued = Number(collection.queued || 0);
+  const collectionLive = document.getElementById('collection-live');
+  if (collectionLive) {
+    const paused = !collection.enabled;
+    collectionLive.hidden = collectionQueued === 0;
+    collectionLive.classList.toggle('on', collectionQueued > 0 && !paused);
+    collectionLive.title = paused
+      ? `${collectionQueued.toLocaleString()} queued · collection paused`
+      : `${collectionQueued.toLocaleString()} queued for Ahrefs`;
+  }
+
+  const evaluation = META.evaluation || {};
+  const evaluationPassed = Number(evaluation.passed || 0);
+  const evaluationButton = document.querySelector('#pipeline-views [data-view="evaluated-domains"]');
+  if (evaluationButton) {
+    evaluationButton.setAttribute('aria-current', String(st.view === EVALUATION_SLUG));
+    const count = evaluationButton.querySelector('.n');
+    if (count) count.textContent = evaluationPassed.toLocaleString();
+  }
+  const evaluationQueued = Number(evaluation.pending || 0);
+  const evaluationLive = document.getElementById('evaluation-live');
+  if (evaluationLive) {
+    evaluationLive.hidden = evaluationQueued === 0;
+    evaluationLive.classList.toggle('on', evaluationQueued > 0);
+    evaluationLive.title = `${evaluationQueued.toLocaleString()} collected domains waiting for evaluation`;
+  }
+}
+
+function renderSeg(prefilterView, keywordView, collectionView, drView, liveView, waybackView, evaluationView) {
+  const seg = document.getElementById('seg');
+  if (!prefilterView && !keywordView && !drView && !liveView && !waybackView && !collectionView && !evaluationView) {
+    seg.hidden = true;
+    return;
+  }
+  const base = ROWS.filter(row =>
+    !row.blocked && row.prefilter && nicheMatch(row) && (st.src === 'all' || row.source === st.src)
+  );
+  if (evaluationView) {
+    const eligible = ROWS.filter(row =>
+      !row.blocked && row.evaluation && nicheMatch(row)
+      && (st.src === 'all' || row.source === st.src)
+    );
+    const counts = {passed: 0, failed: 0};
+    for (const row of eligible) {
+      const bucket = evaluationBucket(row);
+      if (bucket === 'passed' || bucket === 'failed') counts[bucket] += 1;
+    }
+    seg.innerHTML = Object.entries(EVALUATION_FILTERS).map(([key, label]) =>
+      `<button type="button" data-eres="${key}" aria-pressed="${st.eres === key}">`
+      + `${label}<span class="num">${counts[key].toLocaleString()}</span></button>`
+    ).join('');
+    seg.hidden = false;
+    return;
+  }
+  if (collectionView) {
+    const eligible = base.filter(row => row.collection && row.collection.eligible);
+    const counts = {queued: 0, collected: 0, failed: 0};
+    for (const row of eligible) counts[row.collection.status] += 1;
+    seg.innerHTML = Object.entries(COLLECTION_FILTERS).map(([key, label]) =>
+      `<button type="button" data-cres="${key}" aria-pressed="${st.cres === key}">`
+      + `${label}<span class="num">${counts[key].toLocaleString()}</span></button>`
+    ).join('');
+    seg.hidden = false;
+    return;
+  }
+  if (drView) {
+    const eligible = base.filter(row =>
+      row.prefilter.pass && row.keyword_check && row.keyword_check.reusable
+    );
+    const counts = {processing: 0, passed: 0, failed: 0};
+    for (const row of eligible) counts[drBucket(row)] += 1;
+    seg.innerHTML = Object.entries(DR_FILTERS).map(([key, label]) =>
+      `<button type="button" data-dres="${key}" aria-pressed="${st.dres === key}">`
+      + `${label}<span class="num">${counts[key].toLocaleString()}</span></button>`
+    ).join('');
+    seg.hidden = false;
+    return;
+  }
+  if (liveView) {
+    const eligible = base.filter(row =>
+      row.prefilter.pass && row.keyword_check && row.keyword_check.reusable
+      && row.dr_check && row.dr_check.passed
+    );
+    const counts = {processing: 0, passed: 0, failed: 0};
+    for (const row of eligible) counts[liveBucket(row)] += 1;
+    seg.innerHTML = Object.entries(LIVE_FILTERS).map(([key, label]) =>
+      `<button type="button" data-lres="${key}" aria-pressed="${st.lres === key}">`
+      + `${label}<span class="num">${counts[key].toLocaleString()}</span></button>`
+    ).join('');
+    seg.hidden = false;
+    return;
+  }
+  if (waybackView) {
+    const eligible = base.filter(row =>
+      row.prefilter.pass && row.keyword_check && row.keyword_check.reusable
+      && row.dr_check && row.dr_check.passed
+    );
+    const counts = {processing: 0, passed: 0, failed: 0, connection_failed: 0};
+    for (const row of eligible) counts[waybackBucket(row)] += 1;
+    seg.innerHTML = Object.entries(WAYBACK_FILTERS).map(([key, label]) =>
+      `<button type="button" data-wres="${key}" aria-pressed="${st.wres === key}">`
+      + `${label}<span class="num">${counts[key].toLocaleString()}</span></button>`
+    ).join('');
+    seg.hidden = false;
+    return;
+  }
+  if (keywordView) {
+    const eligible = base.filter(row => row.prefilter.pass);
+    const counts = {processing: 0, passed: 0, failed: 0};
+    for (const row of eligible) counts[keywordBucket(row)] += 1;
+    seg.innerHTML = Object.entries(KEYWORD_FILTERS).map(([key, label]) =>
+      `<button type="button" data-kres="${key}" aria-pressed="${st.kres === key}">`
+      + `${label}<span class="num">${counts[key].toLocaleString()}</span></button>`
+    ).join('');
+    seg.hidden = false;
+    return;
+  }
+  const counts = {
+    pass: base.filter(row => row.prefilter.pass).length,
+    fail: base.filter(row => !row.prefilter.pass).length
+  };
+  seg.innerHTML = [['pass', 'Passed'], ['fail', 'Failed']].map(([key, label]) =>
+    `<button type="button" data-res="${key}" aria-pressed="${st.res === key}">`
+    + `${label}<span class="num">${counts[key].toLocaleString()}</span></button>`
+  ).join('');
+  seg.hidden = false;
+}
+
+function renderReasons(show) {
+  const box = document.getElementById('prefilter-reasons');
+  if (!show) {
+    box.hidden = true;
+    return;
+  }
+  const failed = ROWS.filter(row =>
+    !row.blocked && row.prefilter && !row.prefilter.pass
+    && nicheMatch(row) && (st.src === 'all' || row.source === st.src)
+  );
+  const counts = {};
+  for (const row of failed) {
+    const reason = row.prefilter.reason;
+    counts[reason] = (counts[reason] || 0) + 1;
+  }
+  const selected = selectedReasons();
+  const allActive = selected === null;
+  const chips = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([reason, count]) => `<button type="button" class="chip" data-reason="${esc(reason)}" `
+      + `aria-pressed="${allActive || selected.includes(reason)}">${esc(reason)}`
+      + `<span class="cnt num">${count.toLocaleString()}</span></button>`)
+    .join('');
+  box.innerHTML = `<button type="button" class="chip" data-reason="all" `
+    + `aria-pressed="${allActive}">All<span class="cnt num">${failed.length.toLocaleString()}</span></button>`
+    + chips;
+  box.hidden = false;
+}
+
+function render() {
+  const prefilterView = st.view === PREFILTER_SLUG;
+  const keywordView = st.view === KEYWORD_SLUG;
+  const drView = st.view === DR_SLUG;
+  const liveView = st.view === LIVE_SLUG;
+  const waybackView = st.view === WAYBACK_SLUG;
+  const collectionView = st.view === COLLECTION_SLUG;
+  const evaluationView = st.view === EVALUATION_SLUG;
+  if (!sortsFor(st.view).has(st.sort)) {
+    st.sort = 'domain';
+    st.dir = 1;
+  }
+
+  const key = [st.view, st.niche, st.src, st.res, st.reasons, st.kres, st.dres, st.lres, st.wres, st.cres, st.eres, st.q, st.pend, st.sort, st.dir].join('|');
+  if (key !== lastKey) {
+    lastKey = key;
+    limit = 200;
+  }
+
+  const rows = currentRows().sort(compare);
+  shown = rows;
+  const page = rows.slice(0, limit);
+
+  const cols = prefilterView
+    ? (st.res === 'fail' ? PREFILTER_FAILED_COLUMNS : PREFILTER_PASSED_COLUMNS)
+    : keywordView ? KEYWORD_COLUMNS
+      : drView ? DR_COLUMNS
+        : liveView ? LIVE_COLUMNS
+          : waybackView ? WAYBACK_COLUMNS
+            : collectionView ? COLLECTION_COLUMNS
+              : evaluationView ? EVALUATION_COLUMNS : DISCOVERY_COLUMNS;
+  const classFor = key => key === 'niche' ? 'c-niche'
+    : key === 'collected' ? 'c-collected'
+      : key === 'reached' ? 'c-progress'
+        : key === 'price' ? 'c-price'
+          : key === 'bid_end_at' ? 'c-bid-end'
+            : key === 'pass' ? 'c-pass'
+              : key === 'keyword' ? 'c-pass'
+                : key === 'dr' ? 'c-pass'
+                  : key === 'live' ? 'c-pass'
+                    : key === 'wayback' ? 'c-pass'
+                      : key === 'collection_status' ? 'c-pass'
+                  : key === 'collection_at' ? 'c-collected'
+                    : key === 'coverage' ? 'c-coverage'
+                      : key === 'live_links' ? 'c-links'
+                        : key === 'live_refdomains' ? 'c-refdomains'
+                          : key === 'collection_units' ? 'c-units'
+                            : key === 'requests_ok' ? 'c-requests'
+                              : key === 'evaluation' ? 'c-pass'
+                                : key === 'score' ? 'c-units'
+                                  : key === 'evidence' ? 'c-units'
+                                    : key === 'recommendation' ? 'c-reason'
+                                      : key === 'reason' ? 'c-reason' : '';
+  document.querySelector('#tbl thead tr').innerHTML = cols.map(([key, label]) => {
+    const sorted = st.sort === key
+      ? ` aria-sort="${st.dir > 0 ? 'ascending' : 'descending'}"`
+      : '';
+    return `<th data-k="${key}" class="${classFor(key)}"${sorted}><button type="button">${label}</button></th>`;
+  }).join('');
+
+  document.querySelector('#tbl tbody').innerHTML = page.map(row => {
+    if (evaluationView) {
+      const evaluation = row.evaluation;
+      const verdict = evaluation ? evaluation.verdict : '';
+      const processing = !evaluation || !verdict;
+      const verdictTag = processing
+        ? '<span class="oc">… Processing</span>'
+        : verdict === 'Buy'
+          ? '<span class="oc pass">✓ Buy</span>'
+          : verdict === 'Maybe'
+            ? '<span class="oc">… Maybe</span>'
+            : verdict === 'Reject'
+              ? '<span class="oc fail">✕ Reject</span>'
+              : `<span class="tag">${esc(verdict)}</span>`;
+      const score = evaluation && evaluation.score != null
+        ? Number(evaluation.score).toLocaleString(undefined, { maximumFractionDigits: 1 })
+        : '—';
+      const evidence = evaluation && evaluation.evidence_points != null
+        ? Number(evaluation.evidence_points).toLocaleString(undefined, { maximumFractionDigits: 1 })
+        : '—';
+      const recommendation = evaluation && evaluation.recommendation
+        ? evaluation.recommendation : '—';
+      const recommendationTag = recommendation === 'Buy'
+        ? '<span class="oc pass">Buy</span>'
+        : recommendation === 'Reject'
+          ? '<span class="oc fail">Reject</span>'
+          : `<span class="tag">${esc(recommendation)}</span>`;
+      const reason = evaluation && evaluation.reason
+        ? ` data-tip="${esc(evaluation.reason)}" tabindex="0"` : '';
+      return `<tr data-d="${esc(row.domain)}" class="clickable">`
+        + `<td class="c-dom"><button type="button" class="dom-link" data-detail="${esc(row.domain)}">${esc(row.domain)}</button></td>`
+        + `<td><span class="src" title="${esc(row.source_label)}">${esc(row.source_short)}</span></td>`
+        + `<td class="c-niche">${nicheTag(row)}</td>`
+        + `<td class="c-price num">${formatPrice(row.price)}</td>`
+        + `<td class="c-bid-end num mute">${formatBidEnd(row.bid_end_at)}</td>`
+        + `<td class="c-pass"${reason}>${verdictTag}</td>`
+        + `<td class="c-units num">${score}</td>`
+        + `<td class="c-units num">${evidence}</td>`
+        + `<td class="c-reason">${recommendationTag}</td>`
+        + '</tr>';
+    }
+    if (collectionView) {
+      const collection = row.collection;
+      const result = collection.status === 'collected'
+        ? '<span class="oc pass">✓ Collected</span>'
+        : collection.status === 'failed'
+          ? '<span class="oc fail">✕ Failed</span>'
+          : '<span class="oc">… Queued</span>';
+      const error = collection.error
+        ? ` data-tip="${esc(collection.error)}" tabindex="0"` : '';
+      const coverageBits = [
+        collection.coverage_mode,
+        collection.all_time_links == null ? '' : `${collection.all_time_links.toLocaleString()} all-time links`,
+        collection.all_time_refdomains == null ? '' : `${collection.all_time_refdomains.toLocaleString()} all-time RDs`,
+        collection.rows_unique == null ? '' : `${collection.rows_unique} unique rows`,
+        collection.top_anchors == null ? '' : `${collection.top_anchors} top anchors`,
+        collection.lexicon_complete == null ? '' : `lexicon ${collection.lexicon_complete ? 'complete' : 'truncated'}`,
+        collection.run_id ? `run ${collection.run_id}` : ''
+      ].filter(Boolean).join(' · ');
+      const coverage = collection.coverage_mode
+        ? `<span class="tag" title="${esc(coverageBits)}">${esc(collection.coverage_mode)}</span>`
+        : '<span class="none">—</span>';
+      const links = collection.live_links == null
+        ? '—' : Number(collection.live_links).toLocaleString();
+      const refdomains = collection.live_refdomains == null
+        ? '—' : Number(collection.live_refdomains).toLocaleString();
+      const units = collection.units ? Number(collection.units).toLocaleString() : '—';
+      const requests = collection.requests_total
+        ? `${collection.requests_ok}/${collection.requests_total}` : '—';
+      return `<tr data-d="${esc(row.domain)}" class="clickable">`
+        + `<td class="c-dom"><button type="button" class="dom-link" data-detail="${esc(row.domain)}">${esc(row.domain)}</button></td>`
+        + `<td><span class="src" title="${esc(row.source_label)}">${esc(row.source_short)}</span></td>`
+        + `<td class="c-niche">${nicheTag(row)}</td>`
+        + `<td class="c-pass"${error}>${result}</td>`
+        + `<td class="c-collected num mute" title="${esc(collection.run_id)}">${formatBidEnd(collection.fetched_at)}</td>`
+        + `<td class="c-coverage">${coverage}</td>`
+        + `<td class="c-links num">${links}</td>`
+        + `<td class="c-refdomains num">${refdomains}</td>`
+        + `<td class="c-units num">${units}</td>`
+        + `<td class="c-requests num">${requests}</td>`
+        + '</tr>';
+    }
+
+    if (prefilterView) {
+      const result = row.prefilter || {pass: false, reason: '', manual: false};
+      const reason = `<span class="tag" title="${esc(result.reason)}">${esc(result.reason)}</span>`;
+      const passAction = !result.pass && WRITABLE
+        ? ` <button type="button" class="link pass-action" data-pass="${esc(row.domain)}" title="Pass this domain manually">Pass</button>`
+        : '';
+      const resultTag = result.pass
+        ? `<span class="oc pass">✓ Passed</span>${result.manual ? ' <span class="tag">Manual</span>' : ''}`
+        : `<span class="oc fail">✕ Failed</span>`;
+      return `<tr data-d="${esc(row.domain)}">`
+        + `<td class="c-dom"><span class="dom">${esc(row.domain)}</span></td>`
+        + `<td><span class="src" title="${esc(row.source_label)}">${esc(row.source_short)}</span></td>`
+        + `<td class="c-niche">${nicheTag(row)}</td>`
+        + `<td class="c-price num">${formatPrice(row.price)}</td>`
+        + `<td class="c-bid-end num mute">${formatBidEnd(row.bid_end_at)}</td>`
+        + `<td class="c-pass">${resultTag}${passAction}</td>`
+        + (st.res === 'fail' ? `<td class="c-reason">${reason}</td>` : '')
+        + '</tr>';
+    }
+
+    if (keywordView) {
+      const check = row.keyword_check;
+      const queued = !check;
+      const processing = queued || check.status === 'processing';
+      const resultTag = processing
+        ? '<span class="oc">… Processing</span>'
+        : check.reusable
+          ? '<span class="oc pass">✓ Passed</span>'
+          : '<span class="oc fail">✕ Failed</span>';
+      const confidence = check && !processing && check.confidence != null
+        ? ` <span class="tag" title="Confidence">${Math.round(Number(check.confidence) * 100)}%</span>`
+        : '';
+      const reason = check && !processing && check.reason
+        ? ` data-tip="${esc(check.reason)}" tabindex="0"`
+        : '';
+      return `<tr data-d="${esc(row.domain)}">`
+        + `<td class="c-dom"><span class="dom">${esc(row.domain)}</span></td>`
+        + `<td><span class="src" title="${esc(row.source_label)}">${esc(row.source_short)}</span></td>`
+        + `<td class="c-niche">${nicheTag(row)}</td>`
+        + `<td class="c-price num">${formatPrice(row.price)}</td>`
+        + `<td class="c-bid-end num mute">${formatBidEnd(row.bid_end_at)}</td>`
+        + `<td class="c-pass"${reason}>${resultTag}${confidence}</td>`
+        + '</tr>';
+    }
+
+    if (drView) {
+      const check = row.dr_check;
+      const processing = !check || check.status === 'processing';
+      const resultTag = processing
+        ? '<span class="oc">… Processing</span>'
+        : check.passed
+          ? '<span class="oc pass">✓ Passed</span>'
+          : '<span class="oc fail">✕ Failed</span>';
+      const rating = check && !processing && check.rating != null
+        ? ` <span class="tag" title="Ahrefs Domain Rating">DR ${Number(check.rating).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>`
+        : '';
+      const reason = check && !processing && check.reason
+        ? ` data-tip="${esc(check.reason)}" tabindex="0"`
+        : '';
+      return `<tr data-d="${esc(row.domain)}">`
+        + `<td class="c-dom"><span class="dom">${esc(row.domain)}</span></td>`
+        + `<td><span class="src" title="${esc(row.source_label)}">${esc(row.source_short)}</span></td>`
+        + `<td class="c-niche">${nicheTag(row)}</td>`
+        + `<td class="c-price num">${formatPrice(row.price)}</td>`
+        + `<td class="c-bid-end num mute">${formatBidEnd(row.bid_end_at)}</td>`
+        + `<td class="c-pass"${reason}>${resultTag}${rating}</td>`
+        + '</tr>';
+    }
+
+    if (liveView) {
+      const check = row.live_check;
+      const processing = !check || check.status === 'processing';
+      const resultTag = processing
+        ? '<span class="oc">… Processing</span>'
+        : check.passed
+          ? '<span class="oc pass">✓ Passed</span>'
+          : '<span class="oc fail">✕ Failed</span>';
+      const manual = check && !processing && check.manual
+        ? ' <span class="tag">Manual</span>'
+        : '';
+      const klass = check && !processing && check.class
+        ? ` <span class="tag" title="Live check class">${esc(check.class)}</span>`
+        : '';
+      const host = check && !processing && check.final_host
+        ? ` <span class="tag" title="Final host">${esc(check.final_host)}</span>`
+        : '';
+      const status = check && !processing && check.http_status != null
+        ? ` <span class="tag" title="HTTP status">${detailInt(check.http_status)}</span>`
+        : '';
+      const reason = check && !processing && check.reason
+        ? ` data-tip="${esc(check.reason)}" tabindex="0"`
+        : '';
+      const passAction = check && !processing && !check.passed && WRITABLE
+        ? ` <button type="button" class="link pass-action" data-live-pass="${esc(row.domain)}" title="Pass this Live result manually">Pass</button>`
+        : '';
+      return `<tr data-d="${esc(row.domain)}">`
+        + `<td class="c-dom"><span class="dom">${esc(row.domain)}</span></td>`
+        + `<td><span class="src" title="${esc(row.source_label)}">${esc(row.source_short)}</span></td>`
+        + `<td class="c-niche">${nicheTag(row)}</td>`
+        + `<td class="c-price num">${formatPrice(row.price)}</td>`
+        + `<td class="c-bid-end num mute">${formatBidEnd(row.bid_end_at)}</td>`
+        + `<td class="c-pass"${reason}>${resultTag}${manual}${klass}${host}${status}${passAction}</td>`
+        + '</tr>';
+    }
+
+    if (waybackView) {
+      const check = row.wayback_check;
+      const processing = !check || check.status === 'processing';
+      const resultTag = processing
+        ? '<span class="oc">… Processing</span>'
+        : check.passed
+          ? '<span class="oc pass">✓ Passed</span>'
+          : '<span class="oc fail">✕ Failed</span>';
+      const manual = check && !processing && check.manual
+        ? ' <span class="tag">Manual</span>'
+        : '';
+      const score = check && !processing && check.score != null
+        ? ` <span class="tag" title="${check.manual ? 'Automated score before manual pass' : 'Weighted Wayback score'}">${Number(check.score).toLocaleString()}%</span>`
+        : '';
+      const age = check && !processing && check.age_years != null
+        ? ` <span class="tag" title="Archive age">${Number(check.age_years).toLocaleString(undefined, { maximumFractionDigits: 1 })} yrs</span>`
+        : '';
+      const source = check && !processing && check.source
+        ? ` <span class="tag" title="Verdict decided by">${esc(check.source)}</span>`
+        : '';
+      const reason = check && !processing && check.reason
+        ? ` data-tip="${esc(check.reason)}" tabindex="0"`
+        : '';
+      const passAction = check && !processing && !check.passed && WRITABLE
+        ? ` <button type="button" class="link pass-action" data-wayback-pass="${esc(row.domain)}" title="Pass this Wayback result manually">Pass</button>`
+        : '';
+      return `<tr data-d="${esc(row.domain)}">`
+        + `<td class="c-dom"><span class="dom">${esc(row.domain)}</span></td>`
+        + `<td><span class="src" title="${esc(row.source_label)}">${esc(row.source_short)}</span></td>`
+        + `<td class="c-niche">${nicheTag(row)}</td>`
+        + `<td class="c-price num">${formatPrice(row.price)}</td>`
+        + `<td class="c-bid-end num mute">${formatBidEnd(row.bid_end_at)}</td>`
+        + `<td class="c-pass"${reason}>${resultTag}${manual}${score}${age}${source}${passAction}</td>`
+        + '</tr>';
+    }
+
+    const blocked = !!row.blocked;
+    const progressTitle = blocked
+      ? `Rejected by the blocklist: ${row.blocked_label || row.blocked_category}`
+      : row.evaluation
+        ? `Purchase evaluation: ${row.evaluation.verdict || 'pending'} (score ${row.evaluation.score ?? '—'}, evidence ${row.evaluation.evidence_points ?? '—'}): ${row.evaluation.reason || ''}`
+        : row.wayback_check
+        ? row.wayback_check.status === 'processing'
+          ? 'Wayback check is waiting for the archive'
+          : `Wayback ${row.wayback_check.passed ? 'passed' : 'failed'} (${row.wayback_check.score ?? '—'}%): ${row.wayback_check.reason || ''}`
+        : row.live_check
+          ? row.live_check.status === 'processing'
+            ? 'Live check is probing DNS and HTTP'
+            : `Live ${row.live_check.passed ? 'passed' : 'failed'} (${row.live_check.class || '—'}): ${row.live_check.reason || ''}`
+          : row.dr_check
+          ? row.dr_check.status === 'processing'
+            ? 'DR check is waiting for the free Ahrefs endpoint'
+            : `DR ${row.dr_check.passed ? 'passed' : 'failed'}: ${row.dr_check.reason || ''}`
+          : row.keyword_check
+          ? row.keyword_check.status === 'processing'
+            ? 'Keyword check is waiting for the LLM'
+            : `Keyword ${row.keyword_check.reusable ? 'passed' : 'failed'}: ${row.keyword_check.reason || ''}`
+          : row.prefilter
+            ? `Pre-filter ${row.prefilter.pass ? 'passed' : 'failed'}: ${row.prefilter.reason || ''}`
+            : row.niche === 'pending'
+              ? 'Awaiting niche classification'
+              : row.reached === 0
+                ? 'Collected, waiting for pre-filter'
+                : `Reached stage ${row.reached} of 7`;
+    const progressClass = blocked
+      ? 'blocked'
+      : row.evaluation
+        ? (row.evaluation.verdict === 'Reject' ? 'fail' : 'pass')
+        : row.wayback_check
+        ? (row.wayback_check.status === 'processing'
+          ? ''
+          : row.wayback_check.passed ? 'pass' : 'fail')
+        : row.live_check
+          ? (row.live_check.status === 'processing'
+            ? ''
+            : row.live_check.passed ? 'pass' : 'fail')
+          : row.dr_check
+          ? (row.dr_check.status === 'processing'
+            ? ''
+            : row.dr_check.passed ? 'pass' : 'fail')
+          : row.keyword_check
+          ? (row.keyword_check.status === 'processing'
+            ? ''
+            : row.keyword_check.reusable ? 'pass' : 'fail')
+          : row.prefilter
+            ? (row.prefilter.pass ? 'pass' : 'fail')
+            : row.niche === 'pending' ? '' : 'pass';
+    return `<tr data-d="${esc(row.domain)}"${blocked ? ' class="blocked-row"' : ''}>`
+      + `<td class="c-dom"><span class="dom">${esc(row.domain)}</span></td>`
+      + `<td><span class="src" title="${esc(row.source_label)}">${esc(row.source_short)}</span></td>`
+      + `<td class="c-niche">${nicheTag(row)}</td>`
+      + `<td class="c-collected num mute">${esc(row.collected || '—')}</td>`
+      + `<td class="c-progress" title="${esc(progressTitle)}">${dots(row.reached)}<span class="oc ${progressClass}">${esc(row.progress_label)}</span></td>`
+      + '</tr>';
+  }).join('');
+
+  const more = document.getElementById('more');
+  more.hidden = rows.length <= limit;
+  if (!more.hidden) more.textContent = `Show more · ${(rows.length - limit).toLocaleString()} left`;
+
+  const blockedView = st.view === 'blocked';
+  const narrowlyFiltered = Boolean(
+    st.q || st.niche !== 'all' || st.src !== 'all'
+    || (prefilterView
+      ? (st.res === 'fail' && st.reasons !== 'all')
+      : keywordView ? st.kres !== 'processing'
+        : drView ? st.dres !== 'processing'
+          : liveView ? st.lres !== 'processing'
+            : waybackView ? st.wres !== 'processing'
+              : collectionView ? st.cres !== 'queued'
+                : evaluationView ? st.eres !== 'passed' : st.pend)
+  );
+  const filtered = Boolean(
+    st.q || st.niche !== 'all' || st.src !== 'all'
+    || (prefilterView ? st.res === 'fail'
+      : keywordView ? st.kres !== 'processing'
+        : drView ? st.dres !== 'processing'
+          : liveView ? st.lres !== 'processing'
+            : waybackView ? st.wres !== 'processing'
+              : collectionView ? st.cres !== 'queued'
+                : evaluationView ? st.eres !== 'passed' : st.pend)
+  );
+  const empty = document.getElementById('empty');
+  empty.hidden = rows.length > 0;
+  if (!empty.hidden) {
+    if (blockedView) {
+      document.getElementById('empty-h').textContent = 'No blocked domains';
+      document.getElementById('empty-p').textContent = 'No stored domain matched the blocklist dictionary.';
+    } else if (evaluationView) {
+      document.getElementById('empty-h').textContent = narrowlyFiltered
+        ? 'No matches'
+        : `No ${EVALUATION_FILTERS[st.eres].toLowerCase()} evaluations`;
+      document.getElementById('empty-p').textContent = narrowlyFiltered
+        ? 'Try clearing the search or filters.'
+        : st.eres === 'passed'
+          ? 'No collected domain has passed the purchase evaluation yet.'
+          : 'No collected domain has been rejected by the purchase evaluation yet.';
+    } else if (collectionView) {
+      document.getElementById('empty-h').textContent = narrowlyFiltered
+        ? 'No matches'
+        : `No ${COLLECTION_FILTERS[st.cres].toLowerCase()} domains`;
+      document.getElementById('empty-p').textContent = narrowlyFiltered
+        ? 'Try clearing the search or filters.'
+        : st.cres === 'queued'
+          ? 'The worker collects DR-passed domains automatically when data collection is enabled.'
+          : st.cres === 'failed'
+            ? 'No Ahrefs run has failed yet.'
+            : 'No DR-passed domain has finished Ahrefs collection yet.';
+    } else if (prefilterView) {
+      document.getElementById('empty-h').textContent = narrowlyFiltered
+        ? 'No matches'
+        : (st.res === 'fail' ? 'No failed domains' : 'No passed domains');
+      document.getElementById('empty-p').textContent = narrowlyFiltered
+        ? 'Try clearing the search or filters.'
+        : 'The worker prefilters classified domains automatically.';
+    } else if (keywordView) {
+      document.getElementById('empty-h').textContent = narrowlyFiltered
+        ? 'No matches'
+        : `No ${KEYWORD_FILTERS[st.kres].toLowerCase()} keywords`;
+      document.getElementById('empty-p').textContent = narrowlyFiltered
+        ? 'Try clearing the search or filters.'
+        : st.kres === 'processing'
+          ? 'The worker has no keywords waiting for the LLM right now.'
+          : `No keyword has ${st.kres === 'passed' ? 'passed' : 'failed'} the LLM check yet.`;
+    } else if (drView) {
+      document.getElementById('empty-h').textContent = narrowlyFiltered
+        ? 'No matches'
+        : `No ${DR_FILTERS[st.dres].toLowerCase()} DR checks`;
+      document.getElementById('empty-p').textContent = narrowlyFiltered
+        ? 'Try clearing the search or filters.'
+        : st.dres === 'processing'
+          ? 'The worker has no keyword-passed domains waiting for a DR check right now.'
+          : `No domain has ${st.dres === 'passed' ? 'passed' : 'failed'} the DR check yet.`;
+    } else if (liveView) {
+      document.getElementById('empty-h').textContent = narrowlyFiltered
+        ? 'No matches'
+        : `No ${LIVE_FILTERS[st.lres].toLowerCase()} Live checks`;
+      document.getElementById('empty-p').textContent = narrowlyFiltered
+        ? 'Try clearing the search or filters.'
+        : st.lres === 'processing'
+          ? 'The worker has no DR-passed domains waiting for a Live check right now.'
+          : `No domain has ${st.lres === 'passed' ? 'passed' : 'failed'} the Live check yet.`;
+    } else if (waybackView) {
+      document.getElementById('empty-h').textContent = narrowlyFiltered
+        ? 'No matches'
+        : `No ${WAYBACK_FILTERS[st.wres].toLowerCase()} Wayback checks`;
+      document.getElementById('empty-p').textContent = narrowlyFiltered
+        ? 'Try clearing the search or filters.'
+        : st.wres === 'processing'
+          ? 'The worker has no DR-passed domains waiting for a Wayback check right now.'
+          : st.wres === 'connection_failed'
+            ? 'No domain has a zero-score Wayback connection or archive failure.'
+            : `No domain has ${st.wres === 'passed' ? 'passed' : 'failed'} the Wayback checks yet.`;
+    } else {
+      document.getElementById('empty-h').textContent = narrowlyFiltered
+        ? 'No matches'
+        : 'No domains discovered';
+      document.getElementById('empty-p').textContent = narrowlyFiltered
+        ? 'Try clearing the search or filters.'
+        : 'Import a candidate export to populate the discovery list.';
+    }
+    document.getElementById('empty-clear').hidden = blockedView || !filtered;
+  }
+
+  document.getElementById('count').textContent = rows.length.toLocaleString();
+  document.getElementById('pendn').textContent = rows.filter(row => row.niche === 'pending').length.toLocaleString();
+  document.getElementById('pend-chip').hidden = prefilterView || keywordView || drView || liveView || waybackView || collectionView || evaluationView;
+  document.getElementById('clear').hidden = !filtered;
+  document.getElementById('vtitle').textContent = sourceLabel(st.view)
+    + (keywordView ? ' · ' + KEYWORD_FILTERS[st.kres] : '')
+    + (drView ? ' · ' + DR_FILTERS[st.dres] : '')
+    + (liveView ? ' · ' + LIVE_FILTERS[st.lres] : '')
+    + (waybackView ? ' · ' + WAYBACK_FILTERS[st.wres] : '')
+    + (collectionView ? ' · ' + COLLECTION_FILTERS[st.cres] : '')
+    + (evaluationView ? ' · ' + EVALUATION_FILTERS[st.eres] : '')
+    + (!blockedView && st.niche !== 'all' ? ' · ' + (NICHE_LABELS[st.niche] || st.niche) : '');
+
+  renderSidebar();
+  renderPipeline();
+  renderSeg(prefilterView, keywordView, collectionView, drView, liveView, waybackView, evaluationView);
+  renderReasons(prefilterView && st.res === 'fail');
+  sync();
+}
+
+function sync() {
+  const params = new URLSearchParams();
+  for (const key of ['view', 'niche', 'src', 'res', 'reasons', 'kres', 'dres', 'lres', 'wres', 'cres', 'eres', 'q', 'pend', 'sort', 'dir']) {
+    if (key === 'reasons' && (st.view !== PREFILTER_SLUG || st.res !== 'fail' || st.reasons === 'all')) {
+      continue;
+    }
+    if (key === 'kres' && (st.view !== KEYWORD_SLUG || st.kres === DEF.kres)) {
+      continue;
+    }
+    if (key === 'dres' && (st.view !== DR_SLUG || st.dres === DEF.dres)) {
+      continue;
+    }
+    if (key === 'lres' && (st.view !== LIVE_SLUG || st.lres === DEF.lres)) {
+      continue;
+    }
+    if (key === 'wres' && (st.view !== WAYBACK_SLUG || st.wres === DEF.wres)) {
+      continue;
+    }
+    if (key === 'cres' && (st.view !== COLLECTION_SLUG || st.cres === DEF.cres)) {
+      continue;
+    }
+    if (key === 'eres' && (st.view !== EVALUATION_SLUG || st.eres === DEF.eres)) {
+      continue;
+    }
+    if (String(st[key]) !== String(DEF[key])) params.set(key, st[key]);
+  }
+  const hash = params.toString();
+  history.replaceState(null, '', hash ? '#' + hash : location.pathname + location.search);
+}
+
+function resetFilters() {
+  st.q = '';
+  st.niche = 'all';
+  st.src = 'all';
+  st.res = 'pass';
+  st.reasons = 'all';
+  st.kres = 'processing';
+  st.dres = 'processing';
+  st.lres = 'processing';
+  st.wres = 'processing';
+  st.cres = 'queued';
+  st.eres = 'passed';
+  st.pend = 0;
+  document.getElementById('f-q').value = '';
+  document.getElementById('f-niche').value = 'all';
+  document.getElementById('f-src').value = 'all';
+  document.getElementById('f-pend').checked = false;
+  render();
+}
+
+function initControls() {
+  const niche = document.getElementById('f-niche');
+  niche.innerHTML = [
+    '<option value="all">any</option>',
+    ...META.niches.map(item => `<option value="${esc(item.value)}">${esc(item.label)}</option>`)
+  ].join('');
+  niche.value = st.niche;
+
+  const source = document.getElementById('f-src');
+  source.innerHTML = '<option value="all">any</option>'
+    + META.sources.map(item => `<option value="${esc(item.slug)}">${esc(item.label)}</option>`).join('');
+  source.value = st.src;
+
+  document.getElementById('f-q').value = st.q;
+  document.getElementById('f-pend').checked = !!st.pend;
+
+  const generated = document.getElementById('generated');
+  generated.textContent = 'Generated ' + META.generated_at.replace('T', ' ').replace('+00:00', ' UTC');
+  generated.title = META.db_path;
+  document.getElementById('db-path').textContent = 'Index: ' + META.db_path;
+
+  const collection = META.data_collection || {};
+  const budget = document.getElementById('collection-budget');
+  if (budget) {
+    const spent = Number(collection.spent || 0).toLocaleString();
+    const allowed = Number(collection.allowed || 0).toLocaleString();
+    const cap = Number(collection.monthly_cap || 0).toLocaleString();
+    const reserve = Number(collection.reserve || 0).toLocaleString();
+    budget.textContent = `Ahrefs units: ${spent} / ${allowed} this month`
+      + (collection.enabled ? '' : ' · paused');
+    budget.title = `Monthly cap ${cap}; reserve ${reserve}`;
+  }
+}
+
+document.getElementById('source-views').addEventListener('click', event => {
+  const button = event.target.closest('[data-view]');
+  if (!button) return;
+  st.view = button.dataset.view;
+  render();
+});
+document.getElementById('pipeline-views').addEventListener('click', event => {
+  const button = event.target.closest('[data-view]');
+  if (!button) return;
+  st.view = button.dataset.view;
+  if (st.view === PREFILTER_SLUG) {
+    st.res = 'pass';
+    st.reasons = 'all';
+  }
+  if (st.view === KEYWORD_SLUG && !Object.hasOwn(KEYWORD_FILTERS, st.kres)) {
+    st.kres = 'processing';
+  }
+  if (st.view === DR_SLUG && !Object.hasOwn(DR_FILTERS, st.dres)) {
+    st.dres = 'processing';
+  }
+  if (st.view === LIVE_SLUG && !Object.hasOwn(LIVE_FILTERS, st.lres)) {
+    st.lres = 'processing';
+  }
+  if (st.view === WAYBACK_SLUG && !Object.hasOwn(WAYBACK_FILTERS, st.wres)) {
+    st.wres = 'processing';
+  }
+  if (st.view === COLLECTION_SLUG && !Object.hasOwn(COLLECTION_FILTERS, st.cres)) {
+    st.cres = 'queued';
+  }
+  if (st.view === EVALUATION_SLUG && !Object.hasOwn(EVALUATION_FILTERS, st.eres)) {
+    st.eres = 'passed';
+  }
+  render();
+});
+document.getElementById('seg').addEventListener('click', event => {
+  const evaluationButton = event.target.closest('[data-eres]');
+  if (evaluationButton) {
+    st.eres = evaluationButton.dataset.eres;
+    render();
+    return;
+  }
+  const collectionButton = event.target.closest('[data-cres]');
+  if (collectionButton) {
+    st.cres = collectionButton.dataset.cres;
+    render();
+    return;
+  }
+  const drButton = event.target.closest('[data-dres]');
+  if (drButton) {
+    st.dres = drButton.dataset.dres;
+    render();
+    return;
+  }
+  const liveButton = event.target.closest('[data-lres]');
+  if (liveButton) {
+    st.lres = liveButton.dataset.lres;
+    render();
+    return;
+  }
+  const waybackButton = event.target.closest('[data-wres]');
+  if (waybackButton) {
+    st.wres = waybackButton.dataset.wres;
+    render();
+    return;
+  }
+  const keywordButton = event.target.closest('[data-kres]');
+  if (keywordButton) {
+    st.kres = keywordButton.dataset.kres;
+    render();
+    return;
+  }
+  const button = event.target.closest('[data-res]');
+  if (!button) return;
+  st.res = button.dataset.res;
+  render();
+});
+document.getElementById('prefilter-reasons').addEventListener('click', event => {
+  const button = event.target.closest('[data-reason]');
+  if (!button) return;
+  const reason = button.dataset.reason;
+  if (reason === 'all') {
+    st.reasons = 'all';
+  } else if (st.reasons === 'all') {
+    st.reasons = reason;
+  } else {
+    const current = selectedReasons() || [];
+    const next = current.includes(reason)
+      ? current.filter(value => value !== reason)
+      : [...current, reason];
+    st.reasons = next.length ? next.join(',') : 'all';
+  }
+  render();
+});
+document.getElementById('f-q').addEventListener('input', event => {
+  st.q = event.target.value;
+  render();
+});
+document.getElementById('f-niche').addEventListener('change', event => {
+  st.niche = event.target.value;
+  render();
+});
+document.getElementById('f-src').addEventListener('change', event => {
+  st.src = event.target.value;
+  render();
+});
+document.getElementById('f-pend').addEventListener('change', event => {
+  st.pend = event.target.checked ? 1 : 0;
+  render();
+});
+document.getElementById('clear').addEventListener('click', resetFilters);
+document.getElementById('empty-clear').addEventListener('click', resetFilters);
+document.getElementById('more').addEventListener('click', () => {
+  limit += 200;
+  render();
+});
+
+document.querySelector('#tbl tbody').addEventListener('click', event => {
+  const button = event.target.closest('button');
+  if (button && !button.dataset.detail) return;
+  const row = event.target.closest('tr[data-d]');
+  if (!row || !row.classList.contains('clickable')) return;
+  openDomainDetail(row.dataset.d);
+});
+if (detailDialog) {
+  document.getElementById('detail-close').addEventListener('click', closeDomainDetail);
+  detailDialog.addEventListener('click', event => {
+    if (event.target === detailDialog) closeDomainDetail();
+  });
+  detailDialog.addEventListener('close', () => {
+    detailBody.innerHTML = '';
+  });
+}
+
+document.querySelector('#tbl tbody').addEventListener('click', async event => {
+  const button = event.target.closest('[data-pass]');
+  if (!button) return;
+  const domain = button.dataset.pass;
+  if (!window.confirm(`Pass ${domain} manually?`)) return;
+  button.disabled = true;
+  try {
+    const response = await fetch(
+      `/api/prefilter/${encodeURIComponent(domain)}/pass`,
+      { method: 'POST' }
+    );
+    if (!response.ok) throw new Error(await response.text());
+    const row = ROWS.find(item => item.domain === domain);
+    if (row) {
+      row.prefilter = { pass: true, reason: 'Manually passed', manual: true };
+      row.progress_label = 'Passed pre-filter (manual)';
+      row.reached = 1;
+    }
+    render();
+  } catch (error) {
+    console.error(error);
+    button.disabled = false;
+    button.textContent = 'Retry';
+  }
+});
+document.querySelector('#tbl tbody').addEventListener('click', async event => {
+  const button = event.target.closest('[data-live-pass]');
+  if (!button) return;
+  const domain = button.dataset.livePass;
+  if (!window.confirm(`Pass the Live check for ${domain} manually?`)) return;
+  button.disabled = true;
+  try {
+    const response = await fetch(
+      `/api/live/${encodeURIComponent(domain)}/pass`,
+      { method: 'POST' }
+    );
+    if (!response.ok) throw new Error(await response.text());
+    const row = ROWS.find(item => item.domain === domain);
+    if (row && row.live_check) {
+      row.live_check = {
+        ...row.live_check,
+        status: 'passed',
+        passed: true,
+        class: 'manual',
+        reason: 'Manually passed',
+        manual: true
+      };
+      row.progress_label = 'Live passed (manual)';
+      row.reached = Math.max(Number(row.reached || 0), 4);
+    }
+    render();
+  } catch (error) {
+    console.error(error);
+    button.disabled = false;
+    button.textContent = 'Retry';
+  }
+});
+document.querySelector('#tbl tbody').addEventListener('click', async event => {
+  const button = event.target.closest('[data-wayback-pass]');
+  if (!button) return;
+  const domain = button.dataset.waybackPass;
+  if (!window.confirm(`Pass Wayback checks for ${domain} manually?`)) return;
+  button.disabled = true;
+  try {
+    const response = await fetch(
+      `/api/wayback/${encodeURIComponent(domain)}/pass`,
+      { method: 'POST' }
+    );
+    if (!response.ok) throw new Error(await response.text());
+    const row = ROWS.find(item => item.domain === domain);
+    if (row && row.wayback_check) {
+      row.wayback_check = {
+        ...row.wayback_check,
+        status: 'passed',
+        passed: true,
+        reason: 'Manually passed',
+        source: 'manual',
+        manual: true
+      };
+      row.progress_label = 'Wayback passed (manual)';
+      row.reached = 4;
+      if (row.collection) row.collection.eligible = true;
+    }
+    render();
+  } catch (error) {
+    console.error(error);
+    button.disabled = false;
+    button.textContent = 'Retry';
+  }
+});
+document.querySelector('#tbl thead').addEventListener('click', event => {
+  const button = event.target.closest('button');
+  if (!button) return;
+  const key = button.parentElement.dataset.k;
+  if (st.sort === key) st.dir *= -1;
+  else {
+    st.sort = key;
+    st.dir = 1;
+  }
+  render();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === '/' && !event.target.matches('input,select,textarea')) {
+    event.preventDefault();
+    document.getElementById('f-q').focus();
+  }
+});
+
+const tip = document.getElementById('tip');
+let tipTarget = null;
+
+function placeTip(x, y) {
+  const pad = 12;
+  const gap = 14;
+  const rect = tip.getBoundingClientRect();
+  let left = x + gap;
+  let top = y + gap;
+  if (left + rect.width > window.innerWidth - pad) {
+    left = Math.max(pad, x - rect.width - gap);
+  }
+  if (top + rect.height > window.innerHeight - pad) {
+    top = Math.max(pad, y - rect.height - gap);
+  }
+  tip.style.left = `${left}px`;
+  tip.style.top = `${top}px`;
+}
+
+function showTip(target, x, y) {
+  tipTarget = target;
+  tip.textContent = target.dataset.tip;
+  tip.hidden = false;
+  placeTip(x, y);
+}
+
+function hideTip() {
+  tipTarget = null;
+  tip.hidden = true;
+}
+
+document.addEventListener('pointerover', event => {
+  const target = event.target.closest('[data-tip]');
+  if (!target || !target.dataset.tip) return;
+  showTip(target, event.clientX, event.clientY);
+});
+document.addEventListener('pointermove', event => {
+  if (!tipTarget) return;
+  const target = event.target.closest('[data-tip]');
+  if (target !== tipTarget) {
+    hideTip();
+    return;
+  }
+  placeTip(event.clientX, event.clientY);
+});
+document.addEventListener('pointerout', event => {
+  const target = event.target.closest('[data-tip]');
+  if (target && !target.contains(event.relatedTarget)) hideTip();
+});
+document.addEventListener('focusin', event => {
+  const target = event.target.closest('[data-tip]');
+  if (!target || !target.dataset.tip) return;
+  const rect = target.getBoundingClientRect();
+  showTip(target, rect.left + rect.width / 2, rect.top);
+});
+document.addEventListener('focusout', event => {
+  if (event.target.closest('[data-tip]')) hideTip();
+});
+window.addEventListener('scroll', hideTip, true);
+
+initControls();
+render();
+</script>
+</body>
+</html>

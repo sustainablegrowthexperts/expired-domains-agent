@@ -1,0 +1,59 @@
+{
+  "version": "v1",
+  "enabled": true,
+  "pass_score": 50,
+  "min_captures": 2,
+  "min_archive_years": 3.0,
+  "min_live_months": 6,
+  "min_substantive_snapshots": 2,
+  "min_words": 100,
+  "content_min_term_hits": 2,
+  "max_snapshots": 4,
+  "weights": {
+    "toxic_terms": 15,
+    "repurposing": 15,
+    "archive_exists": 10,
+    "archive_span": 10,
+    "live_html_months": 10,
+    "substantive_snapshots": 10,
+    "recent_snapshot_quality": 10,
+    "content_depth": 5,
+    "language_stability": 5,
+    "topic_stability": 5,
+    "parking_history": 3,
+    "redirect_history": 2
+  },
+  "critical_checks": [
+    "toxic_terms",
+    "repurposing",
+    "archive_exists",
+    "substantive_snapshots",
+    "recent_snapshot_quality"
+  ],
+  "toxic_categories": [
+    "adult",
+    "gambling",
+    "pharma",
+    "payday",
+    "crypto_scam",
+    "counterfeit",
+    "link_selling_seo",
+    "evasions"
+  ],
+  "parking_terms": [
+    "domain for sale",
+    "buy this domain",
+    "this domain is for sale",
+    "make an offer",
+    "inquire about this domain",
+    "domain parking",
+    "parked domain",
+    "parked free",
+    "sedo",
+    "afternic",
+    "hugedomains",
+    "bodis",
+    "parkingcrew",
+    "dan.com"
+  ]
+}

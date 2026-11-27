@@ -1,5 +1,96 @@
 -- Implemented vertical slices: runs, request audit trail, stats snapshots,
 -- monthly history series, deduplicated backlinks, and classified anchors.
+-- Candidate domains are stored separately: one canonical row per registrable
+-- domain, plus one observation per (domain, source, collection date). The
+-- canonical row also carries the niche, blocklist, and local-prefilter verdicts.
+
+CREATE TABLE IF NOT EXISTS domains (
+    domain           TEXT PRIMARY KEY,
+    first_seen_date  TEXT NOT NULL,
+    last_seen_date   TEXT NOT NULL,
+    niche            TEXT,
+    niche_source     TEXT,
+    blocked_category TEXT,
+    blocked_terms_json TEXT,
+    prefilter_pass   INTEGER,
+    prefilter_reason TEXT,
+    prefilter_details_json TEXT,
+    prefilter_config_version TEXT,
+    prefilter_checked_at TEXT,
+    prefilter_manual_pass INTEGER NOT NULL DEFAULT 0,
+    prefilter_manual_pass_at TEXT,
+    keyword_check_status TEXT,
+    keyword_check_pass INTEGER,
+    keyword_check_reason TEXT,
+    keyword_check_details_json TEXT,
+    keyword_check_confidence REAL,
+    keyword_check_model TEXT,
+    keyword_check_checked_at TEXT,
+    dr_check_status TEXT,
+    dr_check_pass INTEGER,
+    dr_rating REAL,
+    dr_check_reason TEXT,
+    dr_check_details_json TEXT,
+    dr_check_attempts INTEGER NOT NULL DEFAULT 0,
+    dr_check_checked_at TEXT,
+    live_check_status TEXT,
+    live_check_pass INTEGER,
+    live_check_class TEXT,
+    live_check_reason TEXT,
+    live_check_details_json TEXT,
+    live_check_attempts INTEGER NOT NULL DEFAULT 0,
+    live_check_checked_at TEXT,
+    live_check_manual_pass INTEGER NOT NULL DEFAULT 0,
+    live_check_manual_pass_at TEXT,
+    live_check_final_host TEXT,
+    live_check_http_status INTEGER,
+    live_check_config_version TEXT,
+    wayback_check_status TEXT,
+    wayback_check_pass INTEGER,
+    wayback_score INTEGER,
+    wayback_check_reason TEXT,
+    wayback_check_source TEXT,
+    wayback_check_details_json TEXT,
+    wayback_check_attempts INTEGER NOT NULL DEFAULT 0,
+    wayback_check_checked_at TEXT,
+    wayback_check_manual_pass INTEGER NOT NULL DEFAULT 0,
+    wayback_check_manual_pass_at TEXT,
+    wayback_first_capture TEXT,
+    wayback_last_capture TEXT,
+    wayback_age_years REAL,
+    wayback_capture_count INTEGER,
+    wayback_config_version TEXT,
+    evaluation_status TEXT,
+    evaluation_score REAL,
+    evaluation_evidence_points REAL,
+    evaluation_verdict TEXT,
+    evaluation_recommendation TEXT,
+    evaluation_reason TEXT,
+    evaluation_details_json TEXT,
+    evaluation_config_version TEXT,
+    evaluation_checked_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS pipeline_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS domain_observations (
+    domain          TEXT NOT NULL,
+    source          TEXT NOT NULL,
+    collected_date  TEXT NOT NULL,
+    metrics_json    TEXT NOT NULL,
+    raw_json        TEXT NOT NULL,
+    PRIMARY KEY (domain, source, collected_date),
+    FOREIGN KEY (domain) REFERENCES domains (domain) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_domain_observations_source_date
+    ON domain_observations (source, collected_date);
+
+CREATE INDEX IF NOT EXISTS idx_domains_last_seen
+    ON domains (last_seen_date);
 
 CREATE TABLE IF NOT EXISTS runs (
     run_id            TEXT PRIMARY KEY,

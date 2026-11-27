@@ -107,9 +107,7 @@ def test_stats_spec_uses_the_backlinks_stats_path() -> None:
     assert stats.endpoint == "/site-explorer/backlinks-stats"
 
 
-BACKLINK_SELECT = (
-    "url_from,url_to,anchor,first_seen_link,is_dofollow,domain_rating_source"
-)
+BACKLINK_SELECT = "url_from,url_to,anchor,first_seen_link,is_dofollow,domain_rating_source"
 
 
 def test_top_dr_backlinks_spec_has_exact_params() -> None:
@@ -168,9 +166,7 @@ LEXICON_CATEGORY_COUNTS = {
     "evasions": 3,
 }
 
-LEXICON_ANCHOR_SELECT = (
-    "anchor,links_to_target,dofollow_links,refdomains,first_seen,last_seen"
-)
+LEXICON_ANCHOR_SELECT = "anchor,links_to_target,dofollow_links,refdomains,first_seen,last_seen"
 TOP_ANCHOR_SELECT = "anchor,links_to_target,dofollow_links,first_seen"
 
 
@@ -194,9 +190,7 @@ def test_build_where_yields_one_or_with_all_36_terms() -> None:
 
     lexicon = load_lexicon()
     where = build_where(lexicon)
-    expected_clauses = [
-        {"field": "anchor", "is": ["isubstring", term]} for term in lexicon.terms
-    ]
+    expected_clauses = [{"field": "anchor", "is": ["isubstring", term]} for term in lexicon.terms]
 
     assert json.loads(where) == {"or": expected_clauses}
     assert where == json.dumps({"or": expected_clauses}, separators=(",", ":"), ensure_ascii=False)
