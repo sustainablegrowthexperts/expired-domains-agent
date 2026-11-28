@@ -50,7 +50,7 @@ from expired_domains.dr_check import (
 )
 from expired_domains.evaluation import (
     EvaluationConfig,
-    RelevanceLLM,
+    EvidenceReviewLLM,
     evaluate_pending,
     load_evaluation_config,
 )
@@ -441,7 +441,7 @@ class EvaluationWorker(PollingWorker):
         *,
         interval: float = DEFAULT_NICHE_WORKER_INTERVAL_SECONDS,
         config: EvaluationConfig | None = None,
-        llm: RelevanceLLM | None = None,
+        llm: EvidenceReviewLLM | None = None,
         limit: int = DEFAULT_EVALUATION_CHECKS_PER_CYCLE,
     ) -> None:
         super().__init__(db_path, interval=interval)

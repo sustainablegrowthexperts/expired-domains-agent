@@ -23,7 +23,7 @@ from expired_domains.domain_detail import load_domain_detail, load_domain_detail
 from expired_domains.dr_check import AhrefsDomainRatingChecker
 from expired_domains.enrich import run_enrich
 from expired_domains.evaluation import (
-    OpenRouterRelevanceLLM,
+    OpenRouterEvidenceReviewLLM,
     evaluate_domain,
     load_evaluation_config,
     load_stored_evaluation,
@@ -84,18 +84,22 @@ def create_app(
         live_client: LiveClient | None = None
         wayback_client: WaybackClient | None = None
         wayback_llm: OpenRouterWaybackLLM | None = None
-        evaluation_llm: OpenRouterRelevanceLLM | None = None
+        evaluation_llm: OpenRouterEvidenceReviewLLM | None = (
+            OpenRouterEvidenceReviewLLM(
+                api_key=resolved.openrouter_key,
+                model=resolved.evaluation_llm_model,
+                base_url=resolved.openrouter_base_url,
+            )
+            if resolved.openrouter_key
+            else None
+        )
+        app.state.evaluation_llm = evaluation_llm
         collect_fn = None
         if start_worker and index_path.is_file():
             if resolved.openrouter_key:
                 keyword_checker = OpenRouterKeywordChecker(
                     api_key=resolved.openrouter_key,
                     model=resolved.keyword_check_model,
-                    base_url=resolved.openrouter_base_url,
-                )
-                evaluation_llm = OpenRouterRelevanceLLM(
-                    api_key=resolved.openrouter_key,
-                    model=resolved.evaluation_llm_model,
                     base_url=resolved.openrouter_base_url,
                 )
             if resolved.ahrefs_free_dr_check:
@@ -198,6 +202,7 @@ def create_app(
                 keyword_checker.close()
             if evaluation_llm is not None:
                 evaluation_llm.close()
+            app.state.evaluation_llm = None
             if dr_checker is not None:
                 dr_checker.close()
             if wayback_client is not None:
@@ -334,6 +339,7 @@ def create_app(
                 conn,
                 domain,
                 config=load_evaluation_config(),
+                llm=getattr(app.state, "evaluation_llm", None),
             )
         except sqlite3.Error as exc:
             raise HTTPException(status_code=500, detail=f"could not read index: {exc}") from exc

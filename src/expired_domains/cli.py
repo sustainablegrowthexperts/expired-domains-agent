@@ -24,7 +24,7 @@ from expired_domains.dr_check import AhrefsDomainRatingChecker, dr_check_pending
 from expired_domains.enrich import run_enrich
 from expired_domains.evaluation import (
     EvaluationConfig,
-    OpenRouterRelevanceLLM,
+    OpenRouterEvidenceReviewLLM,
     evaluate_domains,
     evaluate_pending,
     load_evaluation_config,
@@ -184,12 +184,12 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument(
         "--llm",
         action="store_true",
-        help="Use the OpenRouter relevance gate for ambiguous names/topics.",
+        help="Use the OpenRouter health review over the collected evidence.",
     )
     evaluate.add_argument(
         "--model",
         default=None,
-        help="Override the relevance LLM model.",
+        help="Override the evaluation LLM model.",
     )
     evaluate.add_argument(
         "--advisory-only",
@@ -434,7 +434,7 @@ def _run_evaluate(args: argparse.Namespace, settings: Settings | None) -> int:
         if not resolved.openrouter_key:
             print("OPENROUTER_API_KEY is required for --llm", file=sys.stderr)
             return 2
-        llm = OpenRouterRelevanceLLM(
+        llm = OpenRouterEvidenceReviewLLM(
             api_key=resolved.openrouter_key,
             model=args.model or resolved.evaluation_llm_model,
             base_url=resolved.openrouter_base_url,
@@ -565,7 +565,7 @@ def _run_worker(args: argparse.Namespace, settings: Settings | None) -> int:
         else None
     )
     evaluation_llm = (
-        OpenRouterRelevanceLLM(
+        OpenRouterEvidenceReviewLLM(
             api_key=resolved.openrouter_key,
             model=resolved.evaluation_llm_model,
             base_url=resolved.openrouter_base_url,

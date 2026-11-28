@@ -87,11 +87,11 @@ cp .env.example .env   # then fill in real values
 | `EXPIRED_DOMAINS_DATA_ROOT` | No | Base data directory. Default: `<project_root>/data`. |
 | `EXPIRED_DOMAINS_DB_PATH` | No | SQLite index path. Default: `<data_root>/index.sqlite3`. |
 | `EXPIRED_DOMAINS_RAW_ROOT` | No | Raw Ahrefs payload directory. Default: `<data_root>/raw/ahrefs`. |
-| `OPENROUTER_API_KEY` | Yes, for keyword and ambiguous Wayback checks | OpenRouter key used by the keyword-check stage and the Wayback LLM fallback; the niche LLM pass is currently stubbed. |
+| `OPENROUTER_API_KEY` | Yes, for keyword, evaluation, and ambiguous Wayback checks | OpenRouter key used by the keyword-check stage, the evaluation health review, and the Wayback LLM fallback; the niche LLM pass is currently stubbed. |
 | `OPENROUTER_BASE_URL` | No | OpenRouter-compatible API base URL. Default: `https://openrouter.ai/api/v1`. |
 | `NICHE_LLM_MODEL` | No | Model used for the niche pass. Default: `google/gemini-3.5-flash`. |
 | `KEYWORD_CHECK_MODEL` | No | Model used to judge keyword reusability in batches of ten. Default: `google/gemini-2.5-flash-lite`. |
-| `EVALUATION_LLM_MODEL` | No | Model used only for ambiguous name/topic relevance in the purchase evaluation. Default: `google/gemini-2.5-flash-lite`. |
+| `EVALUATION_LLM_MODEL` | No | Model used for the advisory health and acquisition-risk review of the collected evidence. Default: `google/gemini-2.5-flash-lite`. |
 | `EVALUATION_CHECKS_PER_CYCLE` | No | Maximum collected domains the automatic evaluation worker scores per cycle. Default: `5`. |
 | `NICHE_WORKER_INTERVAL_SECONDS` | No | Seconds between automatic pending-niche scans. Default: `10`. |
 | `DATA_COLLECTION_ENABLED` | No | Set to `1` to let the worker collect the Ahrefs standard tier for Live- and Wayback-passed domains. Default: off. |
@@ -473,20 +473,26 @@ verdict engine hard-rejects on `adult`, `gambling`, `pharma_spam`,
 `Maybe`. Cap flags never change the numeric score. A `price_carried_score`
 signal is added when the score reaches 62 only because of the price component.
 
-The default config lives in `config/evaluation/v1.json` and includes the link
+The default config lives in `config/evaluation/v2.json` and includes the link
 classifier seeds, the anchor-spam vocabulary, the history penalties, the
-provider-specific Ahrefs-DR authority profile, and the price breakpoints. Every
-signal carries its evidence, status, confidence, and `gate_eligible` value.
-`--advisory-only` keeps cap flags advisory (the prototype's phase-1 policy) and
-the recommendation becomes `Hold for manual review` when a high-severity flag
-would otherwise be ignored.
+provider-specific Ahrefs-DR authority profile, the price breakpoints, and the
+LLM review limits. Every signal carries its evidence, status, confidence, and
+`gate_eligible` value. `--advisory-only` keeps cap flags advisory (the
+prototype's phase-1 policy) and the recommendation becomes `Hold for manual
+review` when a high-severity flag would otherwise be ignored.
 
-The LLM is optional and deliberately narrow. `--llm` sends only the domain name
-and substantive snapshot titles/excerpts to `EVALUATION_LLM_MODEL`; the model
-returns a name class, per-snapshot on-topic booleans, a confidence, and a short
-reason. The model never sees or sets authority, history, links, spam, or the
-final verdict. Without `--llm`, the evaluator uses the configured niche when
-available and a conservative deterministic name/topic fallback otherwise.
+The LLM is optional and reviews the health and acquisition quality of the
+domain, not its niche. `--llm` sends the collected evidence packet — Ahrefs
+stats, history, backlinks and anchors, Wayback checks and snapshots, and the
+Live check — to `EVALUATION_LLM_MODEL`. The model returns an overall health
+label (`healthy`, `caution`, or `risky`), a confidence, a short summary, and
+structured findings with severity and evidence. Findings become `llm_*` signals
+and never change the deterministic score or verdict. By default they are
+advisory: a high-severity finding turns a would-be `Buy` into `Hold for manual
+review`. Set `flag_policy.gate_llm_findings` to `true` to let findings at or
+above `llm_gate_min_severity` cap the verdict. Relevance stays deterministic;
+an unresolved niche is reported as `relevance_unresolved` rather than guessed
+by this LLM.
 
 Stored fields are `evaluation_status`, `evaluation_score`,
 `evaluation_evidence_points`, `evaluation_verdict`,

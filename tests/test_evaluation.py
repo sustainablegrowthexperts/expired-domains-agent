@@ -12,7 +12,10 @@ from fastapi.testclient import TestClient
 from conftest import make_settings
 from expired_domains.ahrefs.lexicon import load_lexicon
 from expired_domains.evaluation import (
-    OpenRouterRelevanceLLM,
+    EvaluationConfig,
+    EvidenceFinding,
+    EvidenceReviewAssessment,
+    OpenRouterEvidenceReviewLLM,
     _classify_anchor_text,
     _classify_referring_domain,
     _score_components,
@@ -20,7 +23,7 @@ from expired_domains.evaluation import (
     evaluate_pending,
     evaluation_pending,
     load_evaluation_config,
-    parse_relevance_assessment,
+    parse_evidence_review,
     store_evaluation,
 )
 from expired_domains.models import (
@@ -244,7 +247,7 @@ def _seed_domain(
 
 def test_config_loads_the_documented_weights() -> None:
     config = load_evaluation_config()
-    assert config.version == "v1"
+    assert config.version == "v2"
     assert config.weights() == {
         "authority": 25.0,
         "history": 25.0,
@@ -295,6 +298,9 @@ def test_happy_path_scores_as_buy(tmp_db: Path) -> None:
     assert verdict.components["history"].value == 1.0
     assert verdict.components["links"].value == 0.7
     assert verdict.components["relevance"].value == 1.0
+    assert verdict.components["relevance"].source == "lexicon"
+    assert verdict.llm_review is None
+    assert verdict.inputs["llm_review_mode"] == "disabled"
     assert [signal["key"] for signal in verdict.signals] == ["live_missing"]
 
 
@@ -500,7 +506,140 @@ def test_evaluation_api_returns_the_verdict(tmp_path: Path, tmp_db: Path) -> Non
     assert payload["components"]["relevance"]["value"] == 1.0
 
 
-def test_relevance_llm_sends_only_the_ambiguous_name_and_snapshots() -> None:
+class _FakeEvidenceReviewLLM:
+    """A deterministic stand-in for the optional health-review model."""
+
+    model = "test-model"
+
+    def __init__(self, review: EvidenceReviewAssessment) -> None:
+        self.review_result = review
+        self.captured: dict | None = None
+
+    def review(self, domain: str, evidence: dict) -> EvidenceReviewAssessment:
+        self.captured = evidence
+        return self.review_result
+
+
+def _keys(value: object) -> set[str]:
+    if isinstance(value, dict):
+        found = set(value)
+        for item in value.values():
+            found.update(_keys(item))
+        return found
+    if isinstance(value, list):
+        found: set[str] = set()
+        for item in value:
+            found.update(_keys(item))
+        return found
+    return set()
+
+
+def test_llm_review_reads_collected_evidence_and_stays_advisory(tmp_db: Path) -> None:
+    _seed_domain(tmp_db)
+    review = EvidenceReviewAssessment(
+        health="risky",
+        confidence=0.95,
+        summary="The link profile looks like a paid-link network.",
+        findings=(
+            EvidenceFinding(
+                key="paid_link_network",
+                severity="high",
+                confidence=0.92,
+                evidence="63% of the top anchors are link-selling phrases.",
+            ),
+        ),
+    )
+    llm = _FakeEvidenceReviewLLM(review)
+    conn = connect(tmp_db)
+    try:
+        verdict = evaluate_domain(conn, "clinic.com", llm=llm)
+    finally:
+        conn.close()
+
+    assert verdict is not None
+    assert verdict.verdict == "Buy"
+    assert verdict.recommendation == "Hold for manual review"
+    assert verdict.llm_review is not None
+    assert verdict.llm_review["health"] == "risky"
+    assert verdict.llm_review["model"] == "test-model"
+    assert verdict.llm_review["findings"][0]["key"] == "paid_link_network"
+    assert verdict.inputs["llm_review_mode"] == "llm"
+
+    signals = {signal["key"]: signal for signal in verdict.signals}
+    assert signals["llm_domain_health"]["severity"] == "high"
+    assert signals["llm_paid_link_network"]["severity"] == "high"
+    assert all(
+        signal["gate_eligible"] is False
+        for key, signal in signals.items()
+        if key.startswith("llm_")
+    )
+
+    evidence = llm.captured
+    assert evidence is not None
+    assert evidence["ahrefs"]["backlinks"]
+    assert evidence["ahrefs"]["top_anchors"]
+    assert evidence["wayback"]["snapshots"]
+    assert "niche" not in _keys(evidence)
+
+
+def test_llm_review_can_cap_when_gate_enabled(tmp_db: Path) -> None:
+    _seed_domain(tmp_db)
+    base = load_evaluation_config()
+    data = dict(base.data)
+    data["flag_policy"] = {**base.section("flag_policy"), "gate_llm_findings": True}
+    config = EvaluationConfig(version=base.version, data=data)
+    review = EvidenceReviewAssessment(
+        health="healthy",
+        confidence=0.9,
+        summary="One high-severity link-scheme finding.",
+        findings=(
+            EvidenceFinding(
+                key="link_scheme",
+                severity="high",
+                confidence=0.9,
+                evidence="Paid anchor pattern.",
+            ),
+        ),
+    )
+    llm = _FakeEvidenceReviewLLM(review)
+    conn = connect(tmp_db)
+    try:
+        verdict = evaluate_domain(conn, "clinic.com", config=config, llm=llm)
+    finally:
+        conn.close()
+
+    assert verdict is not None
+    assert verdict.verdict == "Maybe"
+    assert "llm_link_scheme" in verdict.reason
+    assert any(
+        signal["key"] == "llm_link_scheme" and signal["gate_eligible"]
+        for signal in verdict.signals
+    )
+
+
+def test_llm_review_low_confidence_is_discarded(tmp_db: Path) -> None:
+    _seed_domain(tmp_db)
+    review = EvidenceReviewAssessment(
+        health="risky",
+        confidence=0.5,
+        summary="Not confident.",
+        findings=(),
+    )
+    llm = _FakeEvidenceReviewLLM(review)
+    conn = connect(tmp_db)
+    try:
+        verdict = evaluate_domain(conn, "clinic.com", llm=llm)
+    finally:
+        conn.close()
+
+    assert verdict is not None
+    assert verdict.verdict == "Buy"
+    assert verdict.llm_review is None
+    assert verdict.inputs["llm_review_mode"] == "failed"
+    assert any(signal["key"] == "llm_review_missing" for signal in verdict.signals)
+
+
+def test_openrouter_evidence_review_sends_collected_evidence() -> None:
     captured: dict[str, object] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -508,65 +647,89 @@ def test_relevance_llm_sends_only_the_ambiguous_name_and_snapshots() -> None:
         captured["body"] = json.loads(request.content)
         content = json.dumps(
             {
-                "topic": "medical clinic",
-                "name_class": "primary",
-                "snapshots_on_topic": [True],
-                "confidence": 0.9,
-                "reason": "name and archive agree",
+                "health": "caution",
+                "confidence": 0.88,
+                "summary": "Mixed link profile.",
+                "findings": [
+                    {
+                        "key": "low_quality_backlinks",
+                        "severity": "medium",
+                        "confidence": 0.8,
+                        "evidence": "A referring domain is a known link seller.",
+                    }
+                ],
             }
         )
         return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
 
-    llm = OpenRouterRelevanceLLM(
+    llm = OpenRouterEvidenceReviewLLM(
         api_key="test-key",
         model="test-model",
         base_url="https://openrouter.ai/api/v1",
         transport=httpx.MockTransport(handler),
     )
     try:
-        assessment = llm.assess(
+        assessment = llm.review(
             "clinic.com",
-            "unknown",
-            [{"title": "Clinic", "excerpt": "A local medical clinic."}],
+            {
+                "domain": "clinic.com",
+                "ahrefs": {
+                    "backlinks": [{"domain": "github.com", "anchor": "clinic"}],
+                    "top_anchors": [{"anchor": "buy backlinks", "links": 100}],
+                },
+                "wayback": {"snapshots": [{"title": "Clinic"}]},
+                "live": {"title": "Clinic", "parking": False},
+            },
         )
     finally:
         llm.close()
 
     assert assessment is not None
-    assert assessment.name_base == 0.55
-    assert assessment.on_topic == (True,)
+    assert assessment.health == "caution"
+    assert assessment.findings[0].key == "low_quality_backlinks"
+    assert llm.model == "test-model"
     body = captured["body"]
     assert isinstance(body, dict)
     assert body["temperature"] == 0
     prompt = json.dumps(body["messages"])
     assert "clinic.com" in prompt
-    assert "A local medical clinic." in prompt
-    assert "authority" in prompt
-    assert "backlinks" in prompt
+    assert "github.com" in prompt
+    assert "buy backlinks" in prompt
+    assert "health" in prompt.lower()
+    assert "niche" not in prompt.lower()
 
 
-def test_parse_relevance_assessment_validates_shape_and_confidence() -> None:
+def test_parse_evidence_review_validates_shape_and_confidence() -> None:
     payload = json.dumps(
         {
-            "topic": "medical clinic",
-            "name_class": "primary",
-            "snapshots_on_topic": [True, True],
+            "health": "risky",
             "confidence": 0.91,
-            "reason": "name and archive agree",
+            "summary": "Paid link network.",
+            "findings": [
+                {
+                    "key": "paid_links",
+                    "severity": "high",
+                    "confidence": 0.9,
+                    "evidence": "Link-selling anchors.",
+                },
+                {
+                    "key": "ignored",
+                    "severity": "critical",
+                    "confidence": 0.9,
+                    "evidence": "Invalid severity.",
+                },
+            ],
         }
     )
-    parsed = parse_relevance_assessment(payload, 2)
+    parsed = parse_evidence_review(payload)
     assert parsed is not None
-    assert parsed.name_base == 0.55
-    assert parsed.on_topic == (True, True)
+    assert parsed.health == "risky"
+    assert len(parsed.findings) == 1
+    assert parsed.findings[0].key == "paid_links"
 
-    assert parse_relevance_assessment(payload, 1) is None
-    low_confidence = json.dumps(
-        {
-            "topic": "medical",
-            "name_class": "primary",
-            "snapshots_on_topic": [True],
-            "confidence": 0.2,
-        }
+    invalid_health = json.dumps(
+        {"health": "bad", "confidence": 0.9, "summary": "x", "findings": []}
     )
-    assert parse_relevance_assessment(low_confidence, 1) is None
+    assert parse_evidence_review(invalid_health) is None
+    assert parse_evidence_review(payload, confidence_threshold=0.95) is None
+    assert parse_evidence_review(json.dumps({"health": "healthy"}), confidence_threshold=0) is None

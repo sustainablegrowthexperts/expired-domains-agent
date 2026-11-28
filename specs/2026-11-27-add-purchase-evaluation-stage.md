@@ -10,9 +10,10 @@
 
 Turn the stored evidence for a collected domain into a reproducible
 `Buy` / `Maybe` / `Reject` purchase recommendation. The rules, score, flags,
-and reason are deterministic functions of frozen evidence. An LLM may resolve
-only ambiguous name/topic relevance; it may not score authority, history, links,
-or spam, and it may not make the final verdict.
+and reason are deterministic functions of frozen evidence. An optional LLM may
+review the collected evidence for domain health and acquisition risk; it may
+not score authority, history, links, or price, and it may not make the final
+verdict.
 
 ## Scope
 
@@ -24,12 +25,13 @@ In scope:
 - Hard-reject, cap, and warning flags with evidence, confidence, and
   `gate_eligible`.
 - Deterministic verdict engine, `price_carried_score`, and a templated reason.
-- Optional OpenRouter relevance gate for unknown/ambiguous niches.
+- Optional OpenRouter health review over the collected Ahrefs, Wayback,
+  backlink, anchor, and Live evidence.
 - Persistence on `domains`, a CLI command, and an API endpoint.
 - An automatic `EvaluationWorker` that queues domains with successful Ahrefs
   runs and processes them independently of collection.
 - An **Evaluated Domains** pipeline view with **Passed** and **Failed** tabs.
-- Versioned config in `config/evaluation/v1.json`.
+- Versioned config in `config/evaluation/v2.json`.
 
 Out of scope:
 
@@ -49,9 +51,9 @@ domains / runs / stats / history / backlinks / anchors / wayback / live
         +---------------------+---------------------+
         |                     |                     |
         v                     v                     v
-  component builders     flag engine          optional LLM gate
-  (authority, history,   (hard/cap/warning,   (name class + per-snapshot
-   links, relevance,      evidence, versions)  on-topic booleans only)
+  component builders     flag engine          optional LLM review
+  (authority, history,   (hard/cap/warning,   (health label + structured
+   links, relevance,      evidence, versions)  findings with evidence)
    price)
         |                     |                     |
         +---------------------+---------------------+
@@ -79,7 +81,8 @@ domains / runs / stats / history / backlinks / anchors / wayback / live
 - **Relevance**: `name_base + 0.45 * on_topic_ratio`, with name bases 0.55
   (primary), 0.35 (secondary/generic), 0.0 (off-topic). The configured niche is
   used when available. Unknown niches fall back to a conservative name/token
-  match and emit `relevance_llm_missing`; `--llm` can resolve the ambiguity.
+  match and emit `relevance_unresolved`; the evaluation LLM does not infer a
+  niche or judge topical relevance.
 - **Price**: full component at or below `$15`, reduced component `0.65` at or
   above `$305`, linear between. A missing price is `null`, not zero, and caps
   the verdict at Maybe.
@@ -98,26 +101,37 @@ domains / runs / stats / history / backlinks / anchors / wayback / live
 
 ### LLM boundary
 
-The optional relevance model receives the domain, the configured niche, and
-substantive snapshot titles/excerpts. It returns:
+The optional health-review model receives the collected evidence: Ahrefs
+stats, history, backlinks, and top/lexicon anchors; Wayback checks and
+snapshots; the Live check; and the listing source/date. It returns:
 
 ```json
 {
-  "topic": "medical clinic",
-  "name_class": "primary",
-  "snapshots_on_topic": [true, true],
-  "confidence": 0.91,
-  "reason": "name and archive agree"
+  "health": "risky",
+  "confidence": 0.93,
+  "summary": "The anchor and referring-domain profile looks like a paid-link network.",
+  "findings": [
+    {
+      "key": "paid_link_network",
+      "severity": "high",
+      "confidence": 0.91,
+      "evidence": "Most top anchors are link-selling phrases."
+    }
+  ]
 }
 ```
 
-Only high-confidence, well-formed responses are accepted. The numeric
-relevance formula and the final verdict remain deterministic.
+Only high-confidence, well-formed responses are accepted. Findings become
+`llm_*` signals with evidence, severity, and confidence. They never change the
+numeric score or the deterministic verdict. By default they are advisory: a
+high-severity finding turns a would-be Buy into `Hold for manual review`.
+`flag_policy.gate_llm_findings` can promote findings at or above
+`llm_gate_min_severity` to cap flags.
 
 ## Files
 
-- `config/evaluation/v1.json` — weights, thresholds, lexicons, price
-  breakpoints, flag sets, and gate eligibility.
+- `config/evaluation/v2.json` — weights, thresholds, lexicons, price
+  breakpoints, flag sets, gate eligibility, and LLM review limits.
 - `src/expired_domains/evaluation.py` — loaders, component builders, flag
   engine, verdict engine, reason renderer, storage, and relevance LLM client.
 - `src/expired_domains/storage/schema.sql` — evaluation columns.
@@ -136,7 +150,8 @@ relevance formula and the final verdict remain deterministic.
 1. **RED** — add tests for word-boundary anchor classification, referring-domain
    classification, the happy-path Buy, the SEO-spam cap, the hard-reject
    override, missing price, missing Wayback, the evidence-out-of-90 calculation,
-   persistence, and LLM response validation.
+   persistence, LLM health-review response validation, advisory findings, and
+   the optional LLM gate.
 2. **GREEN** — implement the config loader, component builders, flag engine,
    verdict engine, storage, CLI, and API until the tests pass.
 3. **REFACTOR** — deduplicate evidence parsing, keep the LLM interface narrow,
@@ -161,6 +176,11 @@ relevance formula and the final verdict remain deterministic.
 - Cap flags never change the numeric score by themselves.
 - `evidence_points` is out of 90 and equals `score - price_points` when all
   components are present.
+- LLM findings are advisory by default and turn a would-be Buy into
+  `Hold for manual review`; they cap the verdict only when
+  `flag_policy.gate_llm_findings` is enabled.
+- The evaluation LLM receives no niche or relevance question; relevance stays
+  deterministic and reports `relevance_unresolved` when the niche is missing.
 
 ## Open calibration items
 
